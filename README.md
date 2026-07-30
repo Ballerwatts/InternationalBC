@@ -72,29 +72,50 @@ app a **persistent disk** — not a stateless serverless function. Vercel's
 default serverless functions are a poor fit for this reason (their
 filesystem is read-only/ephemeral at runtime). The straightforward options:
 
-### Option A — Railway (recommended, easiest)
+Prices below were checked in July 2026 and are usage-based, so treat them as
+estimates — always check the platform's current pricing page.
 
-1. Push this folder to a new GitHub repo.
-2. On [railway.app](https://railway.app), "New Project" → "Deploy from GitHub repo".
-3. Add a **Volume** (Railway dashboard → your service → Settings → Volumes),
-   mount it at `/data`.
-4. Set environment variables (see `.env.example`): `SESSION_SECRET`,
-   `DATABASE_PATH=/data/maccabi.db`, `RESEND_API_KEY`, `FROM_EMAIL`,
-   `CLUB_EMAIL`, `CRON_SECRET`.
-5. Railway auto-detects Next.js, runs `npm install && npm run build`, then
-   `npm start`. Done — you'll get a `*.up.railway.app` URL (attach your own
-   domain under Settings → Networking any time).
-6. Railway also has a built-in Cron plugin — use it to hit
-   `/api/cron/weekly-reminder` every Monday morning (see below).
+### Option A — Fly.io (cheapest: ~USD 2–4 / month total)
 
-### Option B — Render
+A `Dockerfile` and `fly.toml` are already included, pre-configured for this
+app (Node 22, `/data` volume, always-on so there's no cold-start delay for
+visitors). From this folder, with the [flyctl CLI](https://fly.io/docs/flyctl/install/) installed and `fly auth login` done:
 
-Same idea: a "Web Service" (not a static site) with a persistent disk
-mounted at, say, `/data`, `DATABASE_PATH=/data/maccabi.db`, Node 22 runtime,
-build command `npm install && npm run build`, start command `npm start`.
-Render's "Cron Jobs" feature can hit the reminder endpoint on schedule.
+```bash
+fly launch --no-deploy         # detects fly.toml, may ask you to rename the app if taken
+fly volumes create maccabi_data --size 1 --region cdg
+fly secrets set SESSION_SECRET=$(openssl rand -base64 32)
+fly secrets set CRON_SECRET=$(openssl rand -hex 16)
+# optional, for the Monday email reminder — skip for now and add later:
+fly secrets set RESEND_API_KEY=... FROM_EMAIL="Maccabi Basketball Club Genève <...>" CLUB_EMAIL=...
+fly deploy
+```
 
-### Option C — Vercel (possible, but more setup)
+That's it — you'll get a free `https://<your-app>.fly.dev` URL immediately
+(no domain purchase needed to try it live). Smallest machine + 1 GB volume
+runs roughly **$2–2.50/month**; add a `.ch` domain later (~CHF 15/year,
+~CHF 1.25/month) once you're happy with it, by pointing its DNS at Fly
+(`fly certs add yourdomain.ch`).
+
+### Option B — Render (simplest dashboard, ~USD 7 / month)
+
+No command line needed, but no real free tier for this app (Render's free
+Web Service tier doesn't support persistent disks, so the database
+wouldn't survive a restart). A "Web Service" (not a static site) on the
+**Starter** plan ($7/mo) with a persistent disk mounted at `/data`,
+`DATABASE_PATH=/data/maccabi.db`, Node 22 runtime, build command
+`npm install && npm run build`, start command `npm start`. Render's "Cron
+Jobs" feature can hit the reminder endpoint on schedule.
+
+### Option C — Railway (~USD 5–10 / month)
+
+Similar workflow to Render — connect the GitHub repo, add a Volume mounted
+at `/data`, set the same environment variables, done. No longer has a real
+free tier (new accounts get a one-time $5 trial credit only), and tends to
+land around $5–10/month for even a tiny always-on app, so it's the priciest
+of the three here — pick it only if you specifically want its dashboard/DX.
+
+### Option D — Vercel (possible, but more setup)
 
 Vercel works if you swap SQLite for a hosted Postgres (Neon/Supabase both
 have a generous free tier) — this requires rewriting `src/lib/db.js`'s

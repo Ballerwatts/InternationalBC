@@ -1,0 +1,35 @@
+# Fly.io app config — the lowest-cost way to run this site (see README
+# "Deployment" section). After `fly launch` generates/confirms this file:
+#
+#   fly volumes create maccabi_data --size 1 --region <your-region>
+#   fly deploy
+#   fly secrets set SESSION_SECRET=$(openssl rand -base64 32)
+#   fly secrets set CRON_SECRET=$(openssl rand -hex 16)
+#   fly secrets set RESEND_API_KEY=... FROM_EMAIL=... CLUB_EMAIL=...
+#
+# app name must be globally unique — `fly launch` will prompt you to change
+# it if "maccabi-basketball-geneve" is already taken.
+
+app = "maccabi-basketball-geneve"
+primary_region = "cdg" # Paris — closest Fly region to Geneva at time of writing
+
+[build]
+
+[env]
+  PORT = "3000"
+  DATABASE_PATH = "/data/maccabi.db"
+
+[mounts]
+  source = "maccabi_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false   # keep it always-on — no cold starts for a live club site
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
