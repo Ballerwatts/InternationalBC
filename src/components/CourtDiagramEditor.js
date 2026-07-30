@@ -307,6 +307,7 @@ export default function CourtDiagramEditor({
                 x={p.x}
                 y={p.y + 5}
                 textAnchor="middle"
+                fontFamily="Arial, Helvetica, sans-serif"
                 fontSize="15"
                 fontWeight="700"
                 fill="#2371b5"
