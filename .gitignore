@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local SQLite database (club data + admin password hash — never commit this)
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

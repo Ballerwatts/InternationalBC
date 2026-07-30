@@ -2,25 +2,57 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #12233c;
+
+  /* Maccabi Basketball Club Genève brand colors
+     Matched to Maccabi Tel Aviv B.C. (source: teamcolorcodes.com / sportcolorcodes.com) */
+  --mbc-blue: #2371b5;       /* PMS 660 C */
+  --mbc-blue-dark: #163f61;
+  --mbc-yellow: #fff100;     /* PMS 3945 C */
+  --mbc-yellow-deep: #d1a400;
+  --mbc-white: #ffffff;
+  --mbc-ink: #10202f;
+
+  /* Condensed/bold system stack for headings (sporty, no external font fetch
+     required — see layout.js note). Swap for next/font or a self-hosted
+     webfont any time without touching component code. */
+  --font-heading: "Arial Narrow", "Oswald", "Helvetica Neue", Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-mbc-blue: var(--mbc-blue);
+  --color-mbc-blue-dark: var(--mbc-blue-dark);
+  --color-mbc-yellow: var(--mbc-yellow);
+  --color-mbc-yellow-deep: var(--mbc-yellow-deep);
+  --color-mbc-ink: var(--mbc-ink);
+  --font-sans: var(--font-body);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-heading);
+  font-stretch: condensed;
+}
+
+.court-line {
+  stroke: #ffffff;
+  stroke-width: 3;
+  fill: none;
+}
+
+.bg-court {
+  background: linear-gradient(180deg, #1c4c86 0%, #2371b5 100%);
+}
+
+::selection {
+  background: var(--mbc-yellow);
+  color: var(--mbc-ink);
 }

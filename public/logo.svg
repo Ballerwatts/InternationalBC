@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <path id="topArc" d="M 60,200 A 140,140 0 0 1 340,200" />
+    <path id="bottomArc" d="M 92,262.5 A 125,125 0 0 0 308,262.5" />
+  </defs>
+
+  <!-- Outer yellow ring -->
+  <circle cx="200" cy="200" r="196" fill="#FFF100" />
+  <!-- Blue ring -->
+  <circle cx="200" cy="200" r="182" fill="#2371B5" />
+  <!-- Inner white disc -->
+  <circle cx="200" cy="200" r="150" fill="#FFFFFF" />
+  <!-- Thin blue inner ring -->
+  <circle cx="200" cy="200" r="150" fill="none" stroke="#2371B5" stroke-width="4" />
+
+  <!-- Star of David (two overlaid triangles) -->
+  <g transform="translate(200,206)">
+    <polygon points="0,-88 76.2,44 -76.2,44" fill="none" stroke="#2371B5" stroke-width="11" stroke-linejoin="round"/>
+    <polygon points="0,88 76.2,-44 -76.2,-44" fill="none" stroke="#2371B5" stroke-width="11" stroke-linejoin="round"/>
+    <!-- Basketball in the center of the star -->
+    <circle cx="0" cy="0" r="34" fill="#FFF100" stroke="#2371B5" stroke-width="4"/>
+    <path d="M -34,0 A 34,34 0 0 0 34,0" fill="none" stroke="#2371B5" stroke-width="3"/>
+    <path d="M -34,0 A 34,34 0 0 1 34,0" fill="none" stroke="#2371B5" stroke-width="3"/>
+    <line x1="0" y1="-34" x2="0" y2="34" stroke="#2371B5" stroke-width="3"/>
+    <path d="M -24,-24 Q 0,0 -24,24" fill="none" stroke="#2371B5" stroke-width="2.5"/>
+    <path d="M 24,-24 Q 0,0 24,24" fill="none" stroke="#2371B5" stroke-width="2.5"/>
+  </g>
+
+  <!-- Circular text -->
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="30" fill="#2371B5" letter-spacing="4">
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">MACCABI</textPath>
+  </text>
+  <text font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="17" fill="#2371B5" letter-spacing="1.5">
+    <textPath href="#bottomArc" startOffset="50%" text-anchor="middle">GENÈVE BASKETBALL</textPath>
+  </text>
+</svg>
