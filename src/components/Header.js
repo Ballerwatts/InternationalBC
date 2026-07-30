@@ -44,7 +44,7 @@ export default function Header() {
           href="/login"
           className="hidden shrink-0 rounded-full bg-mbc-yellow px-4 py-2 text-sm font-bold uppercase tracking-wide text-mbc-ink transition hover:brightness-95 md:inline-block"
         >
-          Espace admin
+          Connexion équipe
         </Link>
       </div>
       <MobileNav />
@@ -68,7 +68,7 @@ function MobileNav() {
         href="/login"
         className="rounded-full bg-mbc-yellow px-3 py-1.5 font-bold text-mbc-ink"
       >
-        Admin
+        Connexion
       </Link>
     </div>
   );

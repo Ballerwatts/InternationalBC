@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { isAdmin } from "@/lib/auth";
-import { getAllSettings } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const settings = getAllSettings();
+  const session = await getSession();
+  const userCount = query("SELECT id FROM users LIMIT 1");
+
   return NextResponse.json({
-    authenticated: await isAdmin(),
-    needsSetup: !settings.admin_password_hash,
+    authenticated: !!session,
+    role: session?.role || null,
+    name: session?.name || null,
+    needsSetup: userCount.length === 0,
   });
 }

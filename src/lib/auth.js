@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
-const COOKIE_NAME = "mbc_admin_session";
+const COOKIE_NAME = "mbc_session";
 const ALG = "HS256";
 
 function getSecret() {
@@ -19,8 +19,9 @@ export async function verifyPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSessionCookie() {
-  const token = await new SignJWT({ role: "admin" })
+// user = { id, role, name } — role is 'admin' or 'player'.
+export async function createSessionCookie(user) {
+  const token = await new SignJWT({ sub: user.id, role: user.role, name: user.name })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
     .setExpirationTime("30d")
@@ -47,12 +48,18 @@ export async function getSession() {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    return payload;
+    return payload; // { sub, role, name }
   } catch {
     return null;
   }
 }
 
+/** Any logged-in user — admin or player. */
+export async function isAuthenticated() {
+  return !!(await getSession());
+}
+
+/** Admin-only areas (hero, announcements, players, budget, schedule). */
 export async function isAdmin() {
   const session = await getSession();
   return !!session && session.role === "admin";

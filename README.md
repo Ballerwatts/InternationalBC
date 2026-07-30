@@ -9,7 +9,10 @@ service required to get started.
 
 - **Homepage** — editable hero text, team photo, announcements, quick facts,
   next practices/games, embedded map to the training venue, top scorers.
-- **Admin backend** (`/admin`, behind a password you set on first run):
+- **Individual logins for everyone** (see "Accounts & permissions" below) —
+  admins get the full backend; players get their own account limited to the
+  tactics editor and the practice board.
+- **Admin backend** (`/admin`, admin accounts only):
   - Hero / homepage content editor
   - Announcements (publish / unpublish / delete)
   - Player profiles: photo upload, jersey number, license number, email,
@@ -18,21 +21,69 @@ service required to get started.
     logged per player, running balance
   - Schedule manager: add practices/games one by one, or auto-generate the
     next 12 weeks of Monday/Thursday practices in one click
+  - Player accounts manager (`/admin/users`) — create a login for each
+    player, link it to their profile, reset passwords, promote/demote roles,
+    deactivate or delete accounts
+- **Team space** (`/team`, any logged-in account — admin or player):
   - Weekly practice board: this week's focus + drills, shown on the public
     site and pulled into the Monday reminder email
-  - Tactics editor: drag-and-drop half-court diagram tool (see below)
+  - Tactics editor (see below) — every player can create and edit plays,
+    not just admins
 - **Calendar**: every practice/game gets an "Add to calendar" (.ics) button,
   plus a subscribable feed at `/api/calendar.ics` players can add once to
   Google/Apple/Outlook calendar and get automatic updates.
-- **Tactics / play-diagram tool**: half-court board with 5 draggable,
-  numbered player markers and a ball. Tools for **course/cut** (solid
-  arrow), **passe** (dashed arrow), **dribble** (wavy arrow) and **écran**
-  (screen — a T-bar), matching standard basketball coaching notation.
-  Diagrams save to the database and are viewable (read-only) by the whole
-  team on the public `/tactiques` page. Export any diagram as a PNG image.
+- **Tactics / play-diagram tool**: a multi-phase, animated play editor —
+  see "Tactics editor" below for the full feature set.
 - **Monday reminder automation**: `/api/cron/weekly-reminder` emails every
   player with a registered address the week's schedule + practice board,
   with an .ics attachment. See "Monday reminder" below to wire it up.
+
+## Accounts & permissions
+
+There are two roles:
+
+- **admin** — everything: hero/homepage, announcements, player profiles,
+  budget, schedule, player-account management, *and* the team space
+  (tactics + practice board).
+- **player** — only the team space: the tactics editor and the practice
+  board. Players cannot see or edit the budget, player profiles, homepage
+  content, or the schedule.
+
+The very first visit to `/login` creates the first **admin** account (name,
+email, password — no default credentials are baked in). Every account after
+that is created by an admin from `/admin/users`: enter the player's name,
+email and an initial password, optionally link it to their existing player
+profile, and share the credentials with them however you like (they can't
+self-register). Players log in at the same `/login` page and land on
+`/team` instead of `/admin`.
+
+## Tactics editor
+
+The play-diagram tool now matches the feature set of a full coaching-board
+app, not just a single static diagram:
+
+- **Phases** — a play can have multiple phases/frames (e.g. "phase 1: entry
+  pass", "phase 2: screen and roll"). Add, duplicate, rename, reorder by
+  navigating, or delete phases from the phase strip above the court.
+- **Animated playback** — hit ▶ to watch the play move from phase to phase,
+  at 0.5×/1×/1.5×/2× speed. The ball follows a slight curved arc between
+  phases (like a real pass), players move in straight lines.
+- **Up to 5 defenders** — add red "X" defenders anywhere on the court.
+  **Auto screen orientation**: drag an offensive player and drop them next
+  to a defender, and a correctly-oriented screen glyph (line + perpendicular
+  bar) is drawn automatically — no manual angle work needed. The manual
+  "Écran" tool is still there for precise placement.
+- **Half-court / full-court toggle** — switch the board for plays that cover
+  the whole floor (inbounds plays, presses, transition offense).
+- **Drawing tools**: course/cut (solid arrow), passe (dashed arrow), dribble
+  (wavy arrow), écran (screen), and erase — standard basketball coaching
+  notation.
+- **Exports**: PNG of the current phase, a print-ready PDF gridsheet with
+  every phase (opens the browser print dialog — choose "Save as PDF"), and
+  JSON export/import so a play can be backed up or moved between deployments.
+- Diagrams save to the database and are viewable (with full phase
+  navigation and playback) by the whole team, logged in or not, on the
+  public `/tactiques` page.
 
 ## Tech choices (and why)
 
@@ -124,12 +175,16 @@ contained to one file. Photos would need to move to Vercel Blob or another
 object store rather than base64-in-DB once past a small scale, to stay
 under request-size limits. Ask if you'd like this variant built out.
 
-## Setting the admin password
+## Setting up the first admin account
 
-Visit `/login` — the first submission there sets the password (nobody else
-can set it once it exists; there's no "forgot password" flow yet, so if you
-lose it, an operator with server/database access can clear the
-`admin_password_hash` row in the `settings` table to allow a new one to be set).
+Visit `/login` — the first submission there creates the first admin account
+(name, email, password). Every account after that — admin or player — is
+created from `/admin/users` by an existing admin; see "Accounts &
+permissions" above. There's no self-service "forgot password" flow yet: an
+admin can reset anyone's password from `/admin/users`, or if the only admin
+account is locked out, an operator with server/database access can delete
+the relevant row from the `users` table and go through the first-run setup
+again.
 
 ## Adding real player data
 
@@ -185,10 +240,13 @@ palette, uniform Pantone references, and logo usage notes.
 ```
 src/
   app/                    Pages (App Router) + API routes under app/api/*
+                          admin/  — admin-only pages
+                          team/   — tactics + practice board, any logged-in account
   components/             Shared React components (Header, CourtDiagramEditor, ...)
   lib/
     db.js                  SQLite schema, seed data, query helpers
-    auth.js                Admin session cookie (JWT via jose) + password hashing
+    auth.js                Session cookie (JWT via jose) + password hashing, per-user role
+    api-auth.js             requireAdmin() / requireUser() guards for API routes
     ics.js                 Calendar (.ics) generation
     email.js               Resend-based email sending (dev no-op fallback)
     image-client.js        Client-side photo resize before upload

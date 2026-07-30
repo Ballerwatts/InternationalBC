@@ -108,6 +108,20 @@ function migrate(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Individual logins. 'admin' role can reach every /admin page; 'player'
+    -- role can only reach /team (tactics editor + practice board) — see
+    -- src/lib/api-auth.js for how that's enforced on the API side.
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'player', -- 'admin' | 'player'
+      player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -192,6 +206,22 @@ function seed(db) {
         insert.run("practice", "Entraînement", iso, "20:00", "22:00", loc, addr, null, null);
         created++;
       }
+    }
+  }
+
+  // One-time carry-over: earlier versions of this app had a single admin
+  // password stored in settings.admin_password_hash instead of the `users`
+  // table. If that's the only credential on record, promote it to a real
+  // admin user so nobody gets locked out after upgrading.
+  const userCount = db.prepare("SELECT COUNT(*) as c FROM users").get();
+  if (userCount.c === 0) {
+    const legacyHash = db
+      .prepare("SELECT value FROM settings WHERE key = 'admin_password_hash'")
+      .get()?.value;
+    if (legacyHash) {
+      db.prepare(
+        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')"
+      ).run("Admin", "admin@maccabi-basketball-geneve.local", legacyHash);
     }
   }
 }

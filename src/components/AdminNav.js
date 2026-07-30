@@ -10,8 +10,7 @@ const ITEMS = [
   { href: "/admin/players", label: "Joueurs" },
   { href: "/admin/budget", label: "Budget" },
   { href: "/admin/schedule", label: "Calendrier" },
-  { href: "/admin/practice-board", label: "Tableau d'entraînement" },
-  { href: "/admin/tactiques", label: "Tactiques" },
+  { href: "/admin/users", label: "Comptes joueurs" },
 ];
 
 export default function AdminNav() {
@@ -42,6 +41,12 @@ export default function AdminNav() {
           </li>
         ))}
       </ul>
+      <Link
+        href="/team/tactiques"
+        className="mt-4 block rounded-lg border border-mbc-blue/20 px-3 py-2 text-center text-xs font-bold uppercase text-mbc-blue hover:bg-mbc-blue/10"
+      >
+        Espace équipe (tactiques) →
+      </Link>
       <button
         type="button"
         onClick={logout}
