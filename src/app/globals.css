@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #14173f;
+
+  /* International Basketball Club Genève brand colors — sampled directly
+     from the club crest (laurel wreath + Geneva coat of arms, monochrome
+     blue on white). Sampled hex #2D3194, closest standard spot color is
+     approximately Pantone 2143 C (deep indigo-blue) — verify against a
+     physical Pantone guide before ordering anything printed (jerseys,
+     banners) since screen-sampled colors are only an approximation. */
+  --ibc-blue: #2d3194;        /* ≈ PMS 2143 C — primary, from the crest */
+  --ibc-blue-dark: #191c5c;   /* darker shade of the primary, for dark backgrounds */
+  --ibc-accent: #4c56d6;      /* lighter tint of the primary, used for CTAs/highlights (was yellow under the old branding) */
+  --ibc-accent-deep: #363fb0; /* deeper shade of the accent, for hover states */
+  --ibc-white: #ffffff;
+  --ibc-ink: #14173f;
+
+  /* Condensed/bold system stack for headings (sporty, no external font fetch
+     required — see layout.js note). Swap for next/font or a self-hosted
+     webfont any time without touching component code. */
+  --font-heading: "Arial Narrow", "Oswald", "Helvetica Neue", Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ibc-blue: var(--ibc-blue);
+  --color-ibc-blue-dark: var(--ibc-blue-dark);
+  --color-ibc-accent: var(--ibc-accent);
+  --color-ibc-accent-deep: var(--ibc-accent-deep);
+  --color-ibc-ink: var(--ibc-ink);
+  --font-sans: var(--font-body);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-heading);
+  font-stretch: condensed;
+}
+
+.court-line {
+  stroke: #ffffff;
+  stroke-width: 3;
+  fill: none;
+}
+
+.bg-court {
+  background: linear-gradient(180deg, #191c5c 0%, #2d3194 100%);
+}
+
+::selection {
+  background: var(--ibc-accent);
+  color: #ffffff;
+}
