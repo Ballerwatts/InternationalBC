@@ -5,19 +5,31 @@ import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Tactics are for the team only — not published publicly — and scoped to
-// the logged-in user's own squad (admins see everything).
+// Tactics are for the team only — not public — and scoped to the logged-in
+// user's own squad (admins see everything). Staff (admin/coach) see every
+// draft; players only ever see the plays staff have published (see
+// /api/plays/[id] for the publish toggle, which is staff-only).
 export async function GET() {
   const unauthorized = await requireUser();
   if (unauthorized) return unauthorized;
 
   const session = await getSession();
+  const isStaff = session.role === "admin" || session.role === "coach";
+
   if (session.role === "admin") {
     return NextResponse.json(query("SELECT * FROM plays ORDER BY updated_at DESC"));
   }
 
+  if (isStaff) {
+    return NextResponse.json(
+      query("SELECT * FROM plays WHERE team_id IS ? ORDER BY updated_at DESC", [session.team_id ?? null])
+    );
+  }
+
   return NextResponse.json(
-    query("SELECT * FROM plays WHERE team_id IS ? ORDER BY updated_at DESC", [session.team_id ?? null])
+    query("SELECT * FROM plays WHERE team_id IS ? AND published = 1 ORDER BY updated_at DESC", [
+      session.team_id ?? null,
+    ])
   );
 }
 
@@ -33,8 +45,10 @@ export async function POST(request) {
 
   const targetTeamId = session.role === "admin" ? team_id ?? null : session.team_id ?? null;
 
+  // Always starts as an unpublished draft — a coach/admin has to explicitly
+  // publish it (PUT .../publish) before players see it.
   const { lastInsertRowid } = run(
-    "INSERT INTO plays (name, category, diagram_json, team_id) VALUES (?, ?, ?, ?)",
+    "INSERT INTO plays (name, category, diagram_json, team_id, published) VALUES (?, ?, ?, ?, 0)",
     [name, category || "offense", diagram_json, targetTeamId]
   );
 

@@ -116,12 +116,16 @@ function migrate(db) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- New plays start unpublished (published = 0) — anyone on the team can
+    -- draft one, but only a coach/admin can publish it, so players only
+    -- ever see the plays staff have chosen to show (see /api/plays).
     CREATE TABLE IF NOT EXISTS plays (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT 'offense',
       diagram_json TEXT NOT NULL,
       team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      published INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -205,6 +209,7 @@ function migrate(db) {
   addColumnIfMissing(db, "practices", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
   addColumnIfMissing(db, "practice_board", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
   addColumnIfMissing(db, "plays", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
+  addColumnIfMissing(db, "plays", "published", "INTEGER NOT NULL DEFAULT 0");
   addColumnIfMissing(db, "users", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
   addColumnIfMissing(db, "users", "google_id", "TEXT");
   addColumnIfMissing(db, "access_requests", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");

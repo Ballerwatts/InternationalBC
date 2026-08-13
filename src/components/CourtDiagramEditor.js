@@ -352,6 +352,8 @@ export default function CourtDiagramEditor({
   savedPlays = [],
   onLoadPlay,
   onDeletePlay,
+  isStaff = false,
+  onTogglePublish,
 }) {
   const [diagram, setDiagram] = useState(() => migrateDiagram(initialDiagram));
   const [phaseIndex, setPhaseIndex] = useState(0);
@@ -364,6 +366,7 @@ export default function CourtDiagramEditor({
   const [playing, setPlaying] = useState(false);
   const [playT, setPlayT] = useState(0);
   const [speed, setSpeed] = useState(1);
+  const [recordingVideo, setRecordingVideo] = useState(false);
   const svgRef = useRef(null);
   const fileInputRef = useRef(null);
   const rafRef = useRef(null);
@@ -618,6 +621,110 @@ export default function CourtDiagramEditor({
     };
     img.src = url;
   }, [name, courtH, phase.label]);
+
+  // Records the phase-to-phase animation to a real video file (MP4 where the
+  // browser's MediaRecorder supports it, WebM everywhere else — Chrome/Edge
+  // only offer WebM at recording time even though they can usually still
+  // play MP4). Works by drawing each interpolated frame's SVG onto an
+  // offscreen <canvas>, capturing that canvas as a MediaStream, and
+  // recording it — the same technique the play stays interactive for.
+  const exportVideo = useCallback(async () => {
+    if (phases.length < 2) {
+      alert("Ajoutez au moins 2 phases pour exporter une vidéo.");
+      return;
+    }
+    if (typeof window === "undefined" || typeof window.MediaRecorder === "undefined") {
+      alert("L'export vidéo n'est pas supporté par ce navigateur.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = COURT_W * 2;
+    canvas.height = courtH * 2;
+    const ctx = canvas.getContext("2d");
+
+    const candidates = [
+      "video/mp4;codecs=avc1",
+      "video/mp4",
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm",
+    ];
+    const mimeType = candidates.find((t) => window.MediaRecorder.isTypeSupported(t));
+    if (!mimeType) {
+      alert("Aucun format vidéo supporté par ce navigateur.");
+      return;
+    }
+
+    async function drawFrameAt(tVal) {
+      const frame = interpolateFrame(phases, tVal);
+      const svgMarkup = renderToStaticMarkup(
+        <CourtCanvas
+          courtType={diagram.courtType}
+          courtH={courtH}
+          players={diagram.players}
+          defenders={diagram.defenders}
+          frame={frame}
+          interactive={false}
+        />
+      );
+      const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      await new Promise((resolve) => {
+        const img = new window.Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          resolve();
+        };
+        img.src = url;
+      });
+    }
+
+    setRecordingVideo(true);
+    try {
+      await drawFrameAt(0); // paint before the stream starts so the first frame isn't blank
+      const stream = canvas.captureStream(30);
+      const chunks = [];
+      const recorder = new window.MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => {
+        if (e.data.size) chunks.push(e.data);
+      };
+      const stopped = new Promise((resolve) => {
+        recorder.onstop = resolve;
+      });
+      recorder.start();
+
+      const durationPerPhase = 1400 / speed;
+      const totalT = phases.length - 1;
+      const frameIntervalMs = 1000 / 30;
+      let t = 0;
+      while (t < totalT) {
+        // eslint-disable-next-line no-await-in-loop
+        await drawFrameAt(t);
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, frameIntervalMs));
+        t += frameIntervalMs / durationPerPhase;
+      }
+      await drawFrameAt(totalT);
+      await new Promise((r) => setTimeout(r, 400)); // hold the last frame briefly
+
+      recorder.stop();
+      await stopped;
+
+      const blob = new Blob(chunks, { type: mimeType });
+      const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `${name || "schema"}.${ext}`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setRecordingVideo(false);
+    }
+  }, [phases, speed, diagram, courtH, name]);
 
   const exportJson = useCallback(() => {
     const payload = { name, category, ...diagram };
@@ -874,6 +981,17 @@ export default function CourtDiagramEditor({
           >
             PDF (toutes les phases)
           </button>
+          {isStaff && (
+            <button
+              type="button"
+              onClick={exportVideo}
+              disabled={recordingVideo || phases.length < 2}
+              title={phases.length < 2 ? "Ajoutez au moins 2 phases pour exporter une vidéo" : undefined}
+              className="rounded-full bg-ibc-accent px-4 py-2 text-xs font-bold uppercase tracking-wide text-ibc-ink hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {recordingVideo ? "Enregistrement…" : "Vidéo (MP4/WebM)"}
+            </button>
+          )}
           {canEdit && (
             <>
               <button
@@ -952,8 +1070,26 @@ export default function CourtDiagramEditor({
                     >
                       {play.name}
                       <span className="ml-1 text-xs text-ibc-ink/50">({play.category})</span>
+                      {isStaff && (
+                        <span
+                          className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                            play.published ? "bg-green-100 text-green-700" : "bg-black/5 text-ibc-ink/50"
+                          }`}
+                        >
+                          {play.published ? "publié" : "brouillon"}
+                        </span>
+                      )}
                     </button>
-                    <button type="button" onClick={() => onDeletePlay?.(play.id)} className="ml-2 text-xs text-red-500 hover:underline">
+                    {isStaff && (
+                      <button
+                        type="button"
+                        onClick={() => onTogglePublish?.(play)}
+                        className="ml-2 shrink-0 text-xs font-bold uppercase text-ibc-blue hover:underline"
+                      >
+                        {play.published ? "dépublier" : "publier"}
+                      </button>
+                    )}
+                    <button type="button" onClick={() => onDeletePlay?.(play.id)} className="ml-2 shrink-0 text-xs text-red-500 hover:underline">
                       supprimer
                     </button>
                   </li>

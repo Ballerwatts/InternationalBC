@@ -144,11 +144,18 @@ app, not just a single static diagram:
   (wavy arrow), écran (screen), and erase — standard basketball coaching
   notation.
 - **Exports**: PNG of the current phase, a print-ready PDF gridsheet with
-  every phase (opens the browser print dialog — choose "Save as PDF"), and
-  JSON export/import so a play can be backed up or moved between deployments.
-- Diagrams save to the database and are viewable (with full phase
-  navigation and playback) by the whole team, logged in or not, on the
-  public `/tactiques` page.
+  every phase (opens the browser print dialog — choose "Save as PDF"), JSON
+  export/import so a play can be backed up or moved between deployments,
+  and — **staff only** (admin/coach) — a real **MP4/WebM video** of the
+  phase-to-phase animation, recorded straight from the browser
+  (`MediaRecorder` capturing the court canvas, no server-side rendering).
+- **Draft & publish**: any team member can create and edit a play, but it
+  starts as an unpublished draft. Only a coach/admin can publish it
+  ("publier" next to a saved schema) — until then, only staff see it in the
+  list. Players only ever see plays their coach has chosen to publish.
+- Diagrams save to the database, scoped to one team, and are only visible
+  to that team's logged-in accounts — see "Areas hidden from the public"
+  below.
 
 ## Tech choices (and why)
 
@@ -354,13 +361,6 @@ left as-is, so nothing's a silent gap:
 
 - **WhatsApp**: still via Twilio (your choice) rather than Meta's native
   Cloud API — functionally the same messages, less setup on your end.
-- **Tactics editor video export**: the open-source
-  [BasketBallCoach](https://github.com/antonin-lfv/BasketBallCoach) project
-  you linked turns out to already overlap almost entirely with this app's
-  existing tactics editor (phases, curved passes, animation, half/full
-  court, PNG/PDF/JSON export) — its one distinct feature is MP4/WebM video
-  export of a play's animation. That's a scoped, doable addition (record
-  the court `<canvas>` via `MediaRecorder`) — not built yet in this pass.
 - **Content from intbbc.org**: the old site's Teams/Équipe sub-page blocks
   automated scraping (`robots.txt`), and the homepage only had two lines
   about team structure (two men's teams + a women's team, ACGBA

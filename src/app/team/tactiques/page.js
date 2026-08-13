@@ -8,12 +8,20 @@ export default function TacticsAdminPage() {
   const [initialDiagram, setInitialDiagram] = useState(defaultDiagram());
   const [editorKey, setEditorKey] = useState(0);
   const [message, setMessage] = useState("");
+  const [role, setRole] = useState(null);
+
+  const isStaff = role === "admin" || role === "coach";
 
   function refresh() {
     fetch("/api/plays").then((r) => r.json()).then(setPlays);
   }
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    refresh();
+    fetch("/api/auth/status")
+      .then((r) => r.json())
+      .then((d) => setRole(d.role));
+  }, []);
 
   async function handleSave(payload) {
     await fetch("/api/plays", {
@@ -21,8 +29,10 @@ export default function TacticsAdminPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    setMessage(`Schéma « ${payload.name} » enregistré.`);
-    setTimeout(() => setMessage(""), 2500);
+    setMessage(
+      `Schéma « ${payload.name} » enregistré${isStaff ? "" : " — en attente de publication par le coach"}.`
+    );
+    setTimeout(() => setMessage(""), 3000);
     refresh();
   }
 
@@ -31,6 +41,15 @@ export default function TacticsAdminPage() {
     await fetch(`/api/plays/${id}`, { method: "DELETE" });
     setInitialDiagram(defaultDiagram());
     setEditorKey((k) => k + 1);
+    refresh();
+  }
+
+  async function handleTogglePublish(play) {
+    await fetch(`/api/plays/${play.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ published: !play.published }),
+    });
     refresh();
   }
 
@@ -52,7 +71,10 @@ export default function TacticsAdminPage() {
       </div>
       <p className="mt-1 text-sm text-ibc-ink/60">
         Faites glisser les 5 joueurs et le ballon, puis utilisez les outils pour tracer courses,
-        passes, dribbles et écrans. Enregistrez pour publier le schéma sur la page « Tactiques ».
+        passes, dribbles et écrans.{" "}
+        {isStaff
+          ? "Enregistrez puis publiez le schéma pour le rendre visible à toute l'équipe."
+          : "Enregistrez votre schéma — le coach devra le publier pour qu'il soit visible par le reste de l'équipe."}
       </p>
       {message && <p className="mt-2 text-sm font-semibold text-green-700">{message}</p>}
 
@@ -64,6 +86,8 @@ export default function TacticsAdminPage() {
           savedPlays={plays}
           onLoadPlay={() => {}}
           onDeletePlay={handleDelete}
+          isStaff={isStaff}
+          onTogglePublish={handleTogglePublish}
         />
       </div>
     </div>
