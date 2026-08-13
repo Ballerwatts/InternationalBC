@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 const ITEMS = [
   { href: "/team/tactiques", label: "Tactiques" },
   { href: "/team/practice-board", label: "Tableau d'entraînement" },
+  { href: "/team/presences", label: "Présences" },
   { href: "/team/disponibilites", label: "Mes disponibilités" },
 ];
 

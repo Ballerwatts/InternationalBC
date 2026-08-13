@@ -137,6 +137,40 @@ function migrate(db) {
       note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Per-practice RSVP ("tableau d'entraînement" personal mark). Distinct
+    -- from the availability table above, which covers multi-day absence
+    -- windows — this is a lightweight in/out toggle for one practice/game.
+    -- One row per (practice, user); players manage only their own.
+    CREATE TABLE IF NOT EXISTS practice_rsvp (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'in', -- 'in' | 'out'
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(practice_id, user_id)
+    );
+
+    -- Signup/invitation requests. 'request' = someone submitted the public
+    -- "request access" form on /login; a super-admin must approve it from
+    -- /admin/users before any login is created. Approving inserts a row
+    -- into the users table with a freshly generated temporary password.
+    CREATE TABLE IF NOT EXISTS access_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT,
+      message TEXT,
+      origin TEXT NOT NULL DEFAULT 'request', -- 'request' (public, self) | 'invite' (admin-initiated)
+      role TEXT NOT NULL DEFAULT 'player',
+      player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
+      invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      decided_at TEXT
+    );
   `);
 }
 

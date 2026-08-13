@@ -5,6 +5,9 @@ import { requireUser } from "@/lib/api-auth";
 export const dynamic = "force-dynamic";
 
 export async function GET(request, { params }) {
+  const unauthorized = await requireUser();
+  if (unauthorized) return unauthorized;
+
   const play = get("SELECT * FROM plays WHERE id = ?", [params.id]);
   if (!play) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json(play);

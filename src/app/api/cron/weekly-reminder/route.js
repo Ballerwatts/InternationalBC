@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { query, get } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { sendWhatsApp } from "@/lib/whatsapp";
 import { buildIcsFeed } from "@/lib/ics";
 
 export const dynamic = "force-dynamic";
 
-// Intended to be triggered every Monday morning by a scheduler (Vercel Cron,
-// a Railway/Render cron job, or an external pinger like cron-job.org hitting
-// this URL with the CRON_SECRET). See README "Monday reminder automation".
+// Intended to be triggered every Monday morning by a scheduler (a Fly.io
+// scheduled machine, or an external pinger like cron-job.org hitting this
+// URL with the CRON_SECRET). See README "Monday reminder automation".
 export async function GET(request) {
   return handle(request);
 }
@@ -34,38 +35,61 @@ async function handle(request) {
     [monday, sunday]
   );
 
+  // Anyone with an email OR a phone number gets a reminder on whichever
+  // channel(s) they have on file.
   const players = query(
-    "SELECT * FROM players WHERE active = 1 AND email IS NOT NULL AND email != ''"
+    `SELECT * FROM players
+     WHERE active = 1
+       AND ((email IS NOT NULL AND email != '') OR (phone IS NOT NULL AND phone != ''))`
   );
 
   if (players.length === 0) {
     return NextResponse.json({
       ok: true,
       sent: 0,
-      note: "Aucun joueur n'a d'adresse email enregistrée — rien n'a été envoyé.",
+      note: "Aucun joueur n'a d'adresse email ou de numéro de téléphone enregistré — rien n'a été envoyé.",
     });
   }
 
   const html = buildEmailHtml({ board, weekEvents });
+  const whatsappText = buildWhatsAppText({ board, weekEvents, monday });
   const ics = weekEvents.length ? buildIcsFeed(weekEvents) : null;
 
-  let sent = 0;
+  let sentEmail = 0;
+  let sentWhatsApp = 0;
   const errors = [];
+
   for (const player of players) {
-    try {
-      await sendEmail({
-        to: player.email,
-        subject: `International Basketball — Semaine du ${formatFr(monday)}`,
-        html,
-        attachments: ics ? [{ filename: "semaine-ibc.ics", content: ics }] : undefined,
-      });
-      sent++;
-    } catch (e) {
-      errors.push({ player: player.email, error: String(e) });
+    if (player.email) {
+      try {
+        await sendEmail({
+          to: player.email,
+          subject: `International Basketball — Semaine du ${formatFr(monday)}`,
+          html,
+          attachments: ics ? [{ filename: "semaine-ibc.ics", content: ics }] : undefined,
+        });
+        sentEmail++;
+      } catch (e) {
+        errors.push({ player: player.email, channel: "email", error: String(e) });
+      }
+    }
+    if (player.phone) {
+      try {
+        await sendWhatsApp({ to: player.phone, body: whatsappText });
+        sentWhatsApp++;
+      } catch (e) {
+        errors.push({ player: player.phone, channel: "whatsapp", error: String(e) });
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, sent, total: players.length, errors });
+  return NextResponse.json({
+    ok: true,
+    sentEmail,
+    sentWhatsApp,
+    total: players.length,
+    errors,
+  });
 }
 
 function buildEmailHtml({ board, weekEvents }) {
@@ -100,6 +124,22 @@ function buildEmailHtml({ board, weekEvents }) {
       </div>
     </div>
   `;
+}
+
+function buildWhatsAppText({ board, weekEvents, monday }) {
+  const lines = [`*International Basketball Club Genève* — semaine du ${formatFr(monday)}`, ""];
+  if (weekEvents.length) {
+    for (const e of weekEvents) {
+      const label = e.kind === "game" ? `Match${e.opponent ? " vs " + e.opponent : ""}` : "Entraînement";
+      lines.push(`• ${formatFr(e.practice_date)} ${e.start_time}–${e.end_time} — ${label} (${e.location_name || ""})`);
+    }
+  } else {
+    lines.push("Aucun événement prévu cette semaine.");
+  }
+  if (board?.focus) {
+    lines.push("", `Focus entraînement : ${board.focus}`);
+  }
+  return lines.join("\n");
 }
 
 function mondayOfCurrentWeek() {

@@ -4,7 +4,11 @@ import { requireUser } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
+// Tactics are for the team only — not published publicly.
 export async function GET() {
+  const unauthorized = await requireUser();
+  if (unauthorized) return unauthorized;
+
   return NextResponse.json(query("SELECT * FROM plays ORDER BY updated_at DESC"));
 }
 

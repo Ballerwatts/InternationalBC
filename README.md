@@ -22,21 +22,36 @@ service required to get started.
   - Schedule manager: add practices/games one by one, or auto-generate the
     next 12 weeks of Monday/Thursday practices in one click
   - Player accounts manager (`/admin/users`) — create a login for each
-    player, link it to their profile, reset passwords, promote/demote roles,
-    deactivate or delete accounts
+    player directly, link it to their profile, reset passwords,
+    promote/demote roles, deactivate or delete accounts — and approve or
+    reject pending self-service access requests (see "Signup & access
+    requests" below)
+  - Presence headcount (`/admin/presences`) — for each upcoming
+    practice/game, who has marked themselves in, who's out, and who hasn't
+    responded yet
 - **Team space** (`/team`, any logged-in account — admin or player):
   - Weekly practice board: this week's focus + drills, shown on the public
     site and pulled into the Monday reminder email
   - Tactics editor (see below) — every player can create and edit plays,
-    not just admins
+    not just admins. **Not public** — only visible to logged-in accounts.
+  - Presences (`/team/presences`) — a personal "I'll be there / I'm out"
+    mark for each upcoming practice/game
+  - My availability (`/team/disponibilites`) — for longer absence windows
+    (travel, injury), distinct from the per-practice presence mark above
 - **Calendar**: every practice/game gets an "Add to calendar" (.ics) button,
   plus a subscribable feed at `/api/calendar.ics` players can add once to
   Google/Apple/Outlook calendar and get automatic updates.
 - **Tactics / play-diagram tool**: a multi-phase, animated play editor —
-  see "Tactics editor" below for the full feature set.
-- **Monday reminder automation**: `/api/cron/weekly-reminder` emails every
-  player with a registered address the week's schedule + practice board,
-  with an .ics attachment. See "Monday reminder" below to wire it up.
+  see "Tactics editor" below for the full feature set. Team-only, not on
+  the public site.
+- **Monday reminder automation**: `/api/cron/weekly-reminder` emails (and,
+  if configured, WhatsApp-messages) every player with a registered
+  email/phone the week's schedule + practice board. See "Monday reminder"
+  below to wire it up.
+- **Signup & access requests**: anyone can request an account from
+  `/login`; a super-admin approves or rejects each request from
+  `/admin/users` before any login is created. See "Signup & access
+  requests" below.
 
 ## Accounts & permissions
 
@@ -50,12 +65,27 @@ There are two roles:
   content, or the schedule.
 
 The very first visit to `/login` creates the first **admin** account (name,
-email, password — no default credentials are baked in). Every account after
-that is created by an admin from `/admin/users`: enter the player's name,
-email and an initial password, optionally link it to their existing player
-profile, and share the credentials with them however you like (they can't
-self-register). Players log in at the same `/login` page and land on
-`/team` instead of `/admin`.
+email, password — no default credentials are baked in). After that, an
+account can come from two paths — see "Signup & access requests" below —
+but in both cases nothing is created without an admin's say-so. Players log
+in at the same `/login` page and land on `/team` instead of `/admin`.
+
+## Signup & access requests
+
+There are two ways someone ends up with a login, and both require a
+super-admin's approval before the account exists:
+
+1. **Admin creates it directly** — from `/admin/users`, "+ Créer un
+   compte": name, email, an initial password you choose, optionally linked
+   to an existing player profile. Instant, no approval step needed since
+   the admin already vetted the person.
+2. **Self-service request** — anyone visiting `/login` can click "Demander
+   un accès" and submit their name, email, and an optional message. This
+   lands in a **pending queue** on `/admin/users` ("Demandes en attente").
+   A super-admin clicks **Accepter** to approve (this creates the login
+   with a random temporary password, emailed to the requester if SMTP is
+   configured — otherwise it's shown once in the admin UI so you can share
+   it yourself) or **Refuser** to reject.
 
 ## Tactics editor
 
@@ -137,8 +167,9 @@ fly launch --no-deploy         # detects fly.toml, may ask you to rename the app
 fly volumes create ibc_data --size 1 --region cdg
 fly secrets set SESSION_SECRET=$(openssl rand -base64 32)
 fly secrets set CRON_SECRET=$(openssl rand -hex 16)
-# optional, for the Monday email reminder — skip for now and add later:
-fly secrets set RESEND_API_KEY=... FROM_EMAIL="International Basketball Club Genève <...>" CLUB_EMAIL=...
+# optional, for the Monday reminder — skip for now and add later:
+fly secrets set SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... FROM_EMAIL="International Basketball Club Genève <...>" CLUB_EMAIL=...
+fly secrets set TWILIO_ACCOUNT_SID=... TWILIO_AUTH_TOKEN=... TWILIO_WHATSAPP_FROM=whatsapp:+...
 fly deploy
 ```
 
@@ -200,27 +231,43 @@ the same way if that was an oversight.
 
 `GET or POST /api/cron/weekly-reminder` (optionally protected by
 `CRON_SECRET` as a `?secret=` query param or `Authorization: Bearer` header)
-emails everyone with a saved address the current week's practice-board
-focus/drills plus the week's practices/games, with an .ics attachment.
+notifies everyone with a saved email and/or phone number with the current
+week's practice-board focus/drills plus the week's practices/games —
+by email (with an .ics attachment) and, if a phone number is on file and
+WhatsApp is configured, by WhatsApp too.
 
 To fire it automatically every Monday morning, pick one:
 
-- **Railway/Render native cron** (see deployment steps above) — the
-  cleanest option since it lives next to the app.
-- **A free external pinger** like [cron-job.org](https://cron-job.org) hitting
+- **A Fly.io scheduled machine** or **a free external pinger** like
+  [cron-job.org](https://cron-job.org) hitting
   `https://your-domain/api/cron/weekly-reminder?secret=YOUR_CRON_SECRET`
   every Monday at 08:00 Europe/Zurich.
 - **Ask Claude to do it for you**: once the site is deployed and players
-  have real email addresses on file, Claude (this assistant) can set up a
-  weekly scheduled task that calls this endpoint (or emails players
-  directly via a connected Gmail account) every Monday morning — just ask
-  in a new message once those two things are in place. This wasn't set up
-  automatically in this session because there were no player emails yet to
-  send to.
+  have real email addresses/phone numbers on file, Claude (this assistant)
+  can set up a weekly scheduled task that calls this endpoint every Monday
+  morning — just ask in a new message once those are in place.
 
-No email provider is configured by default — until `RESEND_API_KEY` is set,
-the app logs "would send email" to the server console instead of actually
-sending, so nothing breaks in local development.
+### Email (SMTP)
+
+No email provider is configured by default — until `SMTP_HOST` is set, the
+app logs "would send email" to the server console instead of actually
+sending, so nothing breaks in local development. Any SMTP mailbox works:
+Gmail (create an "app password" under your Google Account security
+settings — your normal password won't work), Infomaniak, your own domain's
+mail provider, etc. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
+`FROM_EMAIL` — see `.env.example`.
+
+### WhatsApp reminders (optional)
+
+To also send the weekly reminder over WhatsApp, sign up at
+[twilio.com](https://www.twilio.com), enable the WhatsApp sandbox (free,
+good for testing with a handful of numbers that join the sandbox) or apply
+for an approved WhatsApp Business sender (for sending to the whole team
+without them opting in first), and set `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` — see `.env.example`. Players
+need a phone number on file (`/admin/players`, in international format,
+e.g. `+41791234567`) to receive WhatsApp reminders. Leave these unset to
+skip WhatsApp entirely — the app runs fine with email-only reminders.
 
 ## Brand assets
 
@@ -252,6 +299,7 @@ src/
     auth.js                Session cookie (JWT via jose) + password hashing, per-user role
     api-auth.js             requireAdmin() / requireUser() guards for API routes
     ics.js                 Calendar (.ics) generation
-    email.js               Resend-based email sending (dev no-op fallback)
+    email.js               SMTP email sending via nodemailer (dev no-op fallback)
+    whatsapp.js             WhatsApp sending via Twilio (dev no-op fallback)
     image-client.js        Client-side photo resize before upload
 ```

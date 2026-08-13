@@ -7,20 +7,40 @@ const EMPTY = { name: "", email: "", password: "", role: "player", player_id: ""
 export default function UsersAdminPage() {
   const [users, setUsers] = useState([]);
   const [players, setPlayers] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [credentials, setCredentials] = useState(null);
 
   function refresh() {
     fetch("/api/admin/users").then((r) => r.json()).then(setUsers);
+    fetch("/api/access-requests").then((r) => r.json()).then((d) => setRequests(Array.isArray(d) ? d : []));
   }
 
   useEffect(() => {
     refresh();
     fetch("/api/players").then((r) => r.json()).then(setPlayers);
   }, []);
+
+  async function decide(id, action) {
+    const res = await fetch(`/api/access-requests/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (action === "approve" && data.tempPassword) {
+        setCredentials({ email: requests.find((r) => r.id === id)?.email, password: data.tempPassword, emailed: data.emailed });
+      }
+      refresh();
+    } else {
+      alert((await res.json()).error || "Erreur");
+    }
+  }
 
   async function createUser(e) {
     e.preventDefault();
@@ -80,6 +100,63 @@ export default function UsersAdminPage() {
       </div>
 
       {message && <p className="mt-3 text-sm font-semibold text-green-700">{message}</p>}
+
+      {credentials && (
+        <div className="mt-4 rounded-xl border border-ibc-accent/40 bg-ibc-accent/10 p-4 text-sm">
+          <p className="font-semibold text-ibc-ink">Compte créé pour {credentials.email}</p>
+          <p className="mt-1 text-ibc-ink/70">
+            Mot de passe temporaire : <code className="rounded bg-white px-1.5 py-0.5">{credentials.password}</code>
+            {credentials.emailed
+              ? " — envoyé par e-mail à la personne."
+              : " — SMTP non configuré, communiquez-le vous-même à la personne."}
+          </p>
+          <button
+            onClick={() => setCredentials(null)}
+            className="mt-2 text-xs font-bold uppercase text-ibc-blue hover:underline"
+          >
+            Fermer
+          </button>
+        </div>
+      )}
+
+      {requests.length > 0 && (
+        <div className="mt-6">
+          <h2 className="font-display text-lg font-bold uppercase text-ibc-blue">
+            Demandes en attente ({requests.length})
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {requests.map((r) => (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/5 bg-white p-4 shadow-sm"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-ibc-ink">{r.name}</p>
+                  <p className="text-xs text-ibc-ink/50">
+                    {r.email}
+                    {r.phone && ` · ${r.phone}`}
+                  </p>
+                  {r.message && <p className="mt-1 text-sm text-ibc-ink/70">{r.message}</p>}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    onClick={() => decide(r.id, "approve")}
+                    className="rounded-full bg-green-600 px-4 py-1.5 text-xs font-bold uppercase text-white hover:brightness-110"
+                  >
+                    Accepter
+                  </button>
+                  <button
+                    onClick={() => decide(r.id, "reject")}
+                    className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-bold uppercase text-red-600 hover:bg-red-100"
+                  >
+                    Refuser
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {creating && (
         <form

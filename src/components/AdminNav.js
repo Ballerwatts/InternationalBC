@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/admin/budget", label: "Budget" },
   { href: "/admin/schedule", label: "Calendrier" },
   { href: "/admin/disponibilites", label: "Disponibilités" },
+  { href: "/admin/presences", label: "Présences" },
   { href: "/admin/users", label: "Comptes joueurs" },
 ];
 
