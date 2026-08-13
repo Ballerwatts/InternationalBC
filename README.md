@@ -1,9 +1,44 @@
 # International Basketball Club Genève — site + admin backend
 
-A self-contained Next.js app for the club: public website (homepage, roster,
-calendar, weekly practice board, tactics library) plus a password-protected
-admin backend to run all of it — no external CMS, no separate database
-service required to get started.
+A self-contained Next.js app for the club: public website (homepage, teams,
+calendar) plus a password-protected admin backend to run all of it — no
+external CMS, no separate database service required to get started.
+
+## Multi-team & roles
+
+The club fields several squads (seeded as **IBBC 1**, **IBBC 2**, **IBBC
+Dames** — rename/add more from `/admin/teams`). Everything squad-specific —
+roster, schedule, tactics, practice board, presences — is scoped to a team.
+Three roles:
+
+- **admin (super-admin)** — sees and manages every team, plus billing,
+  account management, and site-wide content (hero, announcements).
+- **coach** — manages only the team(s) they're assigned to: that team's
+  schedule, tactics, practice board, presences, roster.
+- **player** — sees only their own team's tactics, practice board, and
+  schedule.
+
+A user's team is set by a super-admin, either directly (`/admin/users`,
+"+ Créer un compte") or when approving a pending access request (see
+"Signup & access requests" below) — matching "when they sign up, the
+super-admin dispatches what team the player is supposed to be on."
+
+**Known gap:** the admin Players page (`/admin/players`) doesn't yet have a
+team picker in its UI — the data model and API already support
+`team_id` on a player, so assigning existing players to a team currently
+needs a direct API call or a quick follow-up UI addition.
+
+## Sign in with Google (admin only)
+
+Admins can log in with "Sign in with Google" from `/login`, once you've
+registered a Google OAuth client — see `.env.example` for the 3-step setup
+and required env vars (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). This
+does **not** create accounts — it only lets someone log into an admin
+account that already exists and shares the same email address as their
+Google account. Infomaniak sign-in was scoped out for this pass (Infomaniak
+doesn't offer as turnkey a public OAuth flow as Google) — ask if you want it
+built next; you'd need to check what Infomaniak's current OAuth/SSO
+offering supports for third-party apps.
 
 ## What's included
 
@@ -303,3 +338,32 @@ src/
     whatsapp.js             WhatsApp sending via Twilio (dev no-op fallback)
     image-client.js        Client-side photo resize before upload
 ```
+
+## Language, and what's deferred from this round
+
+The public site's structural chrome (header nav, the Teams page) is now in
+**English by default**, matching "website is English by default and French
+translation." A full English/French toggle across every page (admin panel
+included) is a bigger follow-up — this pass didn't build a translation
+system, just flipped the site-wide navigation and Teams page to English so
+there's a clean base to translate from. Say the word and I'll wire up a
+proper `en`/`fr` switch with a French translation of the rest of the copy.
+
+A few other pieces from this round that are intentionally scoped down or
+left as-is, so nothing's a silent gap:
+
+- **WhatsApp**: still via Twilio (your choice) rather than Meta's native
+  Cloud API — functionally the same messages, less setup on your end.
+- **Tactics editor video export**: the open-source
+  [BasketBallCoach](https://github.com/antonin-lfv/BasketBallCoach) project
+  you linked turns out to already overlap almost entirely with this app's
+  existing tactics editor (phases, curved passes, animation, half/full
+  court, PNG/PDF/JSON export) — its one distinct feature is MP4/WebM video
+  export of a play's animation. That's a scoped, doable addition (record
+  the court `<canvas>` via `MediaRecorder`) — not built yet in this pass.
+- **Content from intbbc.org**: the old site's Teams/Équipe sub-page blocks
+  automated scraping (`robots.txt`), and the homepage only had two lines
+  about team structure (two men's teams + a women's team, ACGBA
+  championship, IBBC 1 Geneva Cup champions 2017–2018) — that's what's
+  reflected on the new Teams page. Send over more text/screenshots from the
+  old site's team pages and I'll fold it in.

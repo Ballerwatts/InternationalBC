@@ -30,6 +30,7 @@ const FIELDS = [
   "ppg",
   "active",
   "sort_order",
+  "team_id",
 ];
 
 export async function PUT(request, { params }) {

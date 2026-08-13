@@ -21,7 +21,7 @@ export async function PUT(request, { params }) {
     updates.push("name = ?");
     values.push(body.name.trim());
   }
-  if (typeof body.role === "string" && ["admin", "player"].includes(body.role)) {
+  if (typeof body.role === "string" && ["admin", "coach", "player"].includes(body.role)) {
     updates.push("role = ?");
     values.push(body.role);
   }
@@ -32,6 +32,10 @@ export async function PUT(request, { params }) {
   if ("player_id" in body) {
     updates.push("player_id = ?");
     values.push(body.player_id || null);
+  }
+  if ("team_id" in body) {
+    updates.push("team_id = ?");
+    values.push(body.team_id || null);
   }
   if (typeof body.password === "string" && body.password) {
     if (body.password.length < 8) {

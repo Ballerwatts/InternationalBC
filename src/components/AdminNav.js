@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const ITEMS = [
   { href: "/admin", label: "Tableau de bord" },
+  { href: "/admin/teams", label: "Équipes" },
   { href: "/admin/hero", label: "Accueil (hero)" },
   { href: "/admin/announcements", label: "Annonces" },
   { href: "/admin/players", label: "Joueurs" },

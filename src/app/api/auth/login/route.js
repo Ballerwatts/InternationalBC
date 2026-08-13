@@ -13,7 +13,7 @@ export async function POST(request) {
   }
 
   const user = get(
-    "SELECT id, name, email, password_hash, role, active FROM users WHERE email = ?",
+    "SELECT id, name, email, password_hash, role, team_id, active FROM users WHERE email = ?",
     [cleanEmail]
   );
 
@@ -26,6 +26,6 @@ export async function POST(request) {
     return NextResponse.json({ error: "E-mail ou mot de passe incorrect." }, { status: 401 });
   }
 
-  await createSessionCookie({ id: user.id, role: user.role, name: user.name });
+  await createSessionCookie({ id: user.id, role: user.role, name: user.name, team_id: user.team_id });
   return NextResponse.json({ ok: true, role: user.role });
 }

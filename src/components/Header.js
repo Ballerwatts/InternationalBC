@@ -2,11 +2,10 @@ import Link from "next/link";
 import Image from "next/image";
 
 const NAV = [
-  { href: "/", label: "Accueil" },
-  { href: "/equipe", label: "Équipe" },
-  { href: "/calendrier", label: "Calendrier" },
-  { href: "/entrainements", label: "Tableau d'entraînement" },
-  { href: "/club", label: "Le club" },
+  { href: "/", label: "Home" },
+  { href: "/equipe", label: "Teams" },
+  { href: "/calendrier", label: "Calendar" },
+  { href: "/club", label: "The Club" },
 ];
 
 export default function Header() {
@@ -45,7 +44,7 @@ export default function Header() {
           href="/login"
           className="hidden shrink-0 rounded-full bg-ibc-accent px-4 py-2 text-sm font-bold uppercase tracking-wide text-ibc-ink transition hover:brightness-95 md:inline-block"
         >
-          Connexion équipe
+          Team Login
         </Link>
       </div>
       <MobileNav />
@@ -69,7 +68,7 @@ function MobileNav() {
         href="/login"
         className="rounded-full bg-ibc-accent px-3 py-1.5 font-bold text-ibc-ink"
       >
-        Connexion
+        Login
       </Link>
     </div>
   );

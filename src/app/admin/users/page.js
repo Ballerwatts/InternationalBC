@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 
-const EMPTY = { name: "", email: "", password: "", role: "player", player_id: "" };
+const EMPTY = { name: "", email: "", password: "", role: "player", player_id: "", team_id: "" };
 
 export default function UsersAdminPage() {
   const [users, setUsers] = useState([]);
   const [players, setPlayers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [requests, setRequests] = useState([]);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -14,6 +15,7 @@ export default function UsersAdminPage() {
   const [message, setMessage] = useState("");
   const [openId, setOpenId] = useState(null);
   const [credentials, setCredentials] = useState(null);
+  const [decisions, setDecisions] = useState({}); // { [requestId]: { role, team_id } }
 
   function refresh() {
     fetch("/api/admin/users").then((r) => r.json()).then(setUsers);
@@ -23,18 +25,33 @@ export default function UsersAdminPage() {
   useEffect(() => {
     refresh();
     fetch("/api/players").then((r) => r.json()).then(setPlayers);
+    fetch("/api/admin/teams").then((r) => r.json()).then(setTeams);
   }, []);
 
+  function decisionFor(id) {
+    return decisions[id] || { role: "player", team_id: "" };
+  }
+
   async function decide(id, action) {
+    const body = { action };
+    if (action === "approve") {
+      const d = decisionFor(id);
+      body.role = d.role;
+      body.team_id = d.team_id || null;
+    }
     const res = await fetch(`/api/access-requests/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       const data = await res.json();
       if (action === "approve" && data.tempPassword) {
-        setCredentials({ email: requests.find((r) => r.id === id)?.email, password: data.tempPassword, emailed: data.emailed });
+        setCredentials({
+          email: requests.find((r) => r.id === id)?.email,
+          password: data.tempPassword,
+          emailed: data.emailed,
+        });
       }
       refresh();
     } else {
@@ -48,7 +65,7 @@ export default function UsersAdminPage() {
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, player_id: form.player_id || null }),
+      body: JSON.stringify({ ...form, player_id: form.player_id || null, team_id: form.team_id || null }),
     });
     if (res.ok) {
       setForm(EMPTY);
@@ -82,13 +99,12 @@ export default function UsersAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">
-            Comptes joueurs
+            Comptes
           </h1>
           <p className="mt-1 text-sm text-ibc-ink/60">
-            Chaque joueur peut avoir son propre compte pour se connecter à l&apos;espace équipe
-            (tactiques + tableau d&apos;entraînement). Ils n&apos;ont pas accès au budget, aux
-            profils, à l&apos;accueil ni au calendrier — ces pages restent réservées aux comptes
-            admin.
+            Super-admin voit et gère tout. Coach gère uniquement l&apos;équipe qui lui est
+            assignée (calendrier, tactiques, tableau d&apos;entraînement, présences). Joueur ne
+            voit que les informations de sa propre équipe.
           </p>
         </div>
         <button
@@ -125,35 +141,58 @@ export default function UsersAdminPage() {
             Demandes en attente ({requests.length})
           </h2>
           <ul className="mt-2 space-y-2">
-            {requests.map((r) => (
-              <li
-                key={r.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/5 bg-white p-4 shadow-sm"
-              >
-                <div>
-                  <p className="text-sm font-semibold text-ibc-ink">{r.name}</p>
-                  <p className="text-xs text-ibc-ink/50">
-                    {r.email}
-                    {r.phone && ` · ${r.phone}`}
-                  </p>
-                  {r.message && <p className="mt-1 text-sm text-ibc-ink/70">{r.message}</p>}
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => decide(r.id, "approve")}
-                    className="rounded-full bg-green-600 px-4 py-1.5 text-xs font-bold uppercase text-white hover:brightness-110"
-                  >
-                    Accepter
-                  </button>
-                  <button
-                    onClick={() => decide(r.id, "reject")}
-                    className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-bold uppercase text-red-600 hover:bg-red-100"
-                  >
-                    Refuser
-                  </button>
-                </div>
-              </li>
-            ))}
+            {requests.map((r) => {
+              const d = decisionFor(r.id);
+              return (
+                <li key={r.id} className="rounded-xl border border-black/5 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-ibc-ink">{r.name}</p>
+                      <p className="text-xs text-ibc-ink/50">
+                        {r.email}
+                        {r.phone && ` · ${r.phone}`}
+                      </p>
+                      {r.message && <p className="mt-1 text-sm text-ibc-ink/70">{r.message}</p>}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <select
+                        value={d.role}
+                        onChange={(e) => setDecisions({ ...decisions, [r.id]: { ...d, role: e.target.value } })}
+                        className="input"
+                      >
+                        <option value="player">Joueur</option>
+                        <option value="coach">Coach</option>
+                        <option value="admin">Super-admin</option>
+                      </select>
+                      <select
+                        value={d.team_id}
+                        onChange={(e) => setDecisions({ ...decisions, [r.id]: { ...d, team_id: e.target.value } })}
+                        className="input"
+                      >
+                        <option value="">— équipe —</option>
+                        {teams.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => decide(r.id, "approve")}
+                        className="rounded-full bg-green-600 px-4 py-1.5 text-xs font-bold uppercase text-white hover:brightness-110"
+                      >
+                        Accepter
+                      </button>
+                      <button
+                        onClick={() => decide(r.id, "reject")}
+                        className="rounded-full bg-red-50 px-4 py-1.5 text-xs font-bold uppercase text-red-600 hover:bg-red-100"
+                      >
+                        Refuser
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -191,13 +230,26 @@ export default function UsersAdminPage() {
             onChange={(e) => setForm({ ...form, role: e.target.value })}
             className="input"
           >
-            <option value="player">Joueur (tactiques + entraînement)</option>
-            <option value="admin">Admin (accès complet)</option>
+            <option value="player">Joueur</option>
+            <option value="coach">Coach</option>
+            <option value="admin">Super-admin (accès complet)</option>
+          </select>
+          <select
+            value={form.team_id}
+            onChange={(e) => setForm({ ...form, team_id: e.target.value })}
+            className="input"
+          >
+            <option value="">— Équipe (facultatif pour un super-admin) —</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
           </select>
           <select
             value={form.player_id}
             onChange={(e) => setForm({ ...form, player_id: e.target.value })}
-            className="input col-span-2"
+            className="input"
           >
             <option value="">— Lier à un profil joueur (optionnel) —</option>
             {players.map((p) => (
@@ -219,6 +271,7 @@ export default function UsersAdminPage() {
             key={u.id}
             user={u}
             players={players}
+            teams={teams}
             open={openId === u.id}
             onToggle={() => setOpenId(openId === u.id ? null : u.id)}
             onSave={(patch) => updateUser(u.id, patch)}
@@ -239,11 +292,16 @@ export default function UsersAdminPage() {
   );
 }
 
-function UserRow({ user, players, open, onToggle, onSave, onDelete }) {
+const ROLE_LABELS = { admin: "super-admin", coach: "coach", player: "joueur" };
+
+function UserRow({ user, players, teams, open, onToggle, onSave, onDelete }) {
   const [role, setRole] = useState(user.role);
   const [playerId, setPlayerId] = useState(user.player_id || "");
+  const [teamId, setTeamId] = useState(user.team_id || "");
   const [newPassword, setNewPassword] = useState("");
   const [active, setActive] = useState(!!user.active);
+
+  const teamName = teams.find((t) => t.id === user.team_id)?.name;
 
   return (
     <li className="rounded-xl border border-black/5 bg-white shadow-sm">
@@ -256,8 +314,13 @@ function UserRow({ user, players, open, onToggle, onSave, onDelete }) {
                 user.role === "admin" ? "bg-ibc-blue/10 text-ibc-blue" : "bg-black/5 text-ibc-ink/70"
               }`}
             >
-              {user.role === "admin" ? "admin" : "joueur"}
+              {ROLE_LABELS[user.role] || user.role}
             </span>
+            {teamName && (
+              <span className="ml-2 rounded bg-ibc-accent/10 px-2 py-0.5 text-xs text-ibc-ink/70">
+                {teamName}
+              </span>
+            )}
             {!user.active && <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-xs text-red-600">désactivé</span>}
           </p>
           <p className="text-xs text-ibc-ink/50">
@@ -274,10 +337,22 @@ function UserRow({ user, players, open, onToggle, onSave, onDelete }) {
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Rôle</label>
             <select value={role} onChange={(e) => setRole(e.target.value)} className="input w-full">
               <option value="player">Joueur</option>
-              <option value="admin">Admin</option>
+              <option value="coach">Coach</option>
+              <option value="admin">Super-admin</option>
             </select>
           </div>
           <div>
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Équipe</label>
+            <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className="input w-full">
+              <option value="">— aucune —</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="col-span-2">
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
               Profil joueur lié
             </label>
@@ -313,7 +388,7 @@ function UserRow({ user, players, open, onToggle, onSave, onDelete }) {
           <div className="col-span-2 flex gap-2">
             <button
               onClick={() => {
-                const patch = { role, player_id: playerId || null, active };
+                const patch = { role, player_id: playerId || null, team_id: teamId || null, active };
                 if (newPassword) patch.password = newPassword;
                 onSave(patch);
                 setNewPassword("");

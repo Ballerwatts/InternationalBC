@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/db";
-import { requireUser } from "@/lib/api-auth";
+import { requireStaff } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request, { params }) {
-  const unauthorized = await requireUser();
+  const unauthorized = await requireStaff();
   if (unauthorized) return unauthorized;
 
   const { week_start_date, focus, drills, notes } = await request.json();
@@ -17,7 +17,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const unauthorized = await requireUser();
+  const unauthorized = await requireStaff();
   if (unauthorized) return unauthorized;
 
   run("DELETE FROM practice_board WHERE id = ?", [params.id]);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { get, run } from "@/lib/db";
+import { requireStaff } from "@/lib/api-auth";
+import { getSession } from "@/lib/auth";
 
 const FIELDS = [
   "kind",
@@ -16,9 +17,22 @@ const FIELDS = [
 
 export const dynamic = "force-dynamic";
 
+async function assertOwnsTeamOrAdmin(practiceId) {
+  const session = await getSession();
+  if (session.role === "admin") return null;
+  const practice = get("SELECT team_id FROM practices WHERE id = ?", [practiceId]);
+  if (!practice) return NextResponse.json({ error: "introuvable" }, { status: 404 });
+  if (practice.team_id !== session.team_id) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
 export async function PUT(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireStaff();
   if (unauthorized) return unauthorized;
+  const scopeError = await assertOwnsTeamOrAdmin(params.id);
+  if (scopeError) return scopeError;
 
   const body = await request.json();
   const sets = [];
@@ -37,8 +51,10 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireStaff();
   if (unauthorized) return unauthorized;
+  const scopeError = await assertOwnsTeamOrAdmin(params.id);
+  if (scopeError) return scopeError;
 
   run("DELETE FROM practices WHERE id = ?", [params.id]);
   return NextResponse.json({ ok: true });

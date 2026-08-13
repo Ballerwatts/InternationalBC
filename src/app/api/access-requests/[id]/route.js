@@ -24,7 +24,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "cette demande a déjà été traitée" }, { status: 400 });
   }
 
-  const { action } = await request.json();
+  const { action, role, team_id } = await request.json();
 
   if (action === "reject") {
     run("UPDATE access_requests SET status = 'rejected', decided_at = datetime('now') WHERE id = ?", [
@@ -37,6 +37,9 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "action invalide" }, { status: 400 });
   }
 
+  const finalRole = ["admin", "coach", "player"].includes(role) ? role : reqRow.role || "player";
+  const finalTeamId = team_id || reqRow.requested_team_id || reqRow.team_id || null;
+
   const already = get("SELECT id FROM users WHERE email = ?", [reqRow.email]);
   if (already) {
     run("UPDATE access_requests SET status = 'approved', decided_at = datetime('now') WHERE id = ?", [
@@ -48,13 +51,14 @@ export async function POST(request, { params }) {
   const tempPassword = randomPassword();
   const hash = await hashPassword(tempPassword);
   const { lastInsertRowid } = run(
-    "INSERT INTO users (name, email, password_hash, role, player_id, active) VALUES (?, ?, ?, ?, ?, 1)",
-    [reqRow.name, reqRow.email, hash, reqRow.role || "player", reqRow.player_id || null]
+    "INSERT INTO users (name, email, password_hash, role, player_id, team_id, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
+    [reqRow.name, reqRow.email, hash, finalRole, reqRow.player_id || null, finalTeamId]
   );
 
-  run("UPDATE access_requests SET status = 'approved', decided_at = datetime('now') WHERE id = ?", [
-    params.id,
-  ]);
+  run(
+    "UPDATE access_requests SET status = 'approved', role = ?, team_id = ?, decided_at = datetime('now') WHERE id = ?",
+    [finalRole, finalTeamId, params.id]
+  );
 
   let emailed = false;
   try {

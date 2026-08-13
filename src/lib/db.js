@@ -37,6 +37,19 @@ function migrate(db) {
       value TEXT
     );
 
+    -- The club fields multiple squads (e.g. two men's teams + a women's
+    -- team). Everything team-specific (roster, schedule, tactics, practice
+    -- board, presences) is scoped to one of these via team_id. A NULL
+    -- team_id on practices/practice_board/plays means "whole club" (kept
+    -- for anything not squad-specific, e.g. shared facility bookings).
+    CREATE TABLE IF NOT EXISTS teams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      category TEXT, -- free text, e.g. 'Hommes 1', 'Hommes 2', 'Dames'
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS announcements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -61,6 +74,7 @@ function migrate(db) {
       ppg REAL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER DEFAULT 0,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -78,7 +92,7 @@ function migrate(db) {
 
     CREATE TABLE IF NOT EXISTS practices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      kind TEXT NOT NULL DEFAULT 'practice', -- 'practice' | 'game'
+      kind TEXT NOT NULL DEFAULT 'practice', -- 'practice' | 'game' | 'event' | 'open_gym'
       title TEXT NOT NULL,
       practice_date TEXT NOT NULL, -- 'YYYY-MM-DD'
       start_time TEXT NOT NULL,    -- 'HH:MM'
@@ -87,6 +101,7 @@ function migrate(db) {
       location_address TEXT,
       opponent TEXT,
       notes TEXT,
+      team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -96,6 +111,7 @@ function migrate(db) {
       focus TEXT,
       drills TEXT, -- newline separated
       notes TEXT,
+      team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -105,20 +121,27 @@ function migrate(db) {
       name TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT 'offense',
       diagram_json TEXT NOT NULL,
+      team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    -- Individual logins. 'admin' role can reach every /admin page; 'player'
-    -- role can only reach /team (tactics editor + practice board) — see
-    -- src/lib/api-auth.js for how that's enforced on the API side.
+    -- Individual logins. 'admin' = super-admin, sees/manages every team.
+    -- 'coach' manages the one (or more) teams they're assigned to (schedule,
+    -- tactics, practice board, presences, roster) but not billing/other
+    -- teams/account management. 'player' sees only their own team's info.
+    -- See src/lib/api-auth.js for how this is enforced on the API side.
+    -- google_id is set when the account was created/linked via "Sign in
+    -- with Google" (admin accounts only, see /api/auth/google).
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'player', -- 'admin' | 'player'
+      role TEXT NOT NULL DEFAULT 'player', -- 'admin' | 'coach' | 'player'
       player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      google_id TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -164,14 +187,35 @@ function migrate(db) {
       phone TEXT,
       message TEXT,
       origin TEXT NOT NULL DEFAULT 'request', -- 'request' (public, self) | 'invite' (admin-initiated)
-      role TEXT NOT NULL DEFAULT 'player',
+      role TEXT NOT NULL DEFAULT 'player', -- 'admin' | 'coach' | 'player'
       player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      requested_team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL, -- what the requester said, if anything
       status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
       invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       decided_at TEXT
     );
   `);
+
+  // Lightweight upgrade path for dev databases created before team_id /
+  // google_id existed — CREATE TABLE IF NOT EXISTS above doesn't add
+  // columns to a table that's already there.
+  addColumnIfMissing(db, "players", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
+  addColumnIfMissing(db, "practices", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
+  addColumnIfMissing(db, "practice_board", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
+  addColumnIfMissing(db, "plays", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
+  addColumnIfMissing(db, "users", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
+  addColumnIfMissing(db, "users", "google_id", "TEXT");
+  addColumnIfMissing(db, "access_requests", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
+  addColumnIfMissing(db, "access_requests", "requested_team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
+}
+
+function addColumnIfMissing(db, table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 const DEFAULT_SETTINGS = {
@@ -207,6 +251,12 @@ const SEED_PLAYERS = [
   { first_name: "Mohamed", last_name: "Turki", games_played: 11, total_points: 11, ppg: 1.0 },
 ];
 
+const SEED_TEAMS = [
+  { name: "IBBC 1", category: "Hommes 1 — 2ème Ligue Cantonale" },
+  { name: "IBBC 2", category: "Hommes 2" },
+  { name: "IBBC Dames", category: "Dames" },
+];
+
 function seed(db) {
   const countRow = db.prepare("SELECT COUNT(*) as c FROM settings").get();
   if (countRow.c === 0) {
@@ -214,14 +264,23 @@ function seed(db) {
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insert.run(k, String(v));
   }
 
+  const teamCount = db.prepare("SELECT COUNT(*) as c FROM teams").get();
+  if (teamCount.c === 0) {
+    const insert = db.prepare("INSERT INTO teams (name, category, sort_order) VALUES (?, ?, ?)");
+    SEED_TEAMS.forEach((t, i) => insert.run(t.name, t.category, i));
+  }
+  // First team ("IBBC 1") is the squad this app was originally built
+  // around — everything not-yet-assigned to a team defaults to it below.
+  const primaryTeamId = db.prepare("SELECT id FROM teams ORDER BY sort_order ASC LIMIT 1").get()?.id || null;
+
   const playerCount = db.prepare("SELECT COUNT(*) as c FROM players").get();
   if (playerCount.c === 0) {
     const insert = db.prepare(`
-      INSERT INTO players (first_name, last_name, games_played, total_points, ppg, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO players (first_name, last_name, games_played, total_points, ppg, sort_order, team_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     SEED_PLAYERS.forEach((p, i) => {
-      insert.run(p.first_name, p.last_name, p.games_played, p.total_points, p.ppg, i);
+      insert.run(p.first_name, p.last_name, p.games_played, p.total_points, p.ppg, i, primaryTeamId);
     });
   }
 
@@ -238,8 +297,8 @@ function seed(db) {
   const practiceCount = db.prepare("SELECT COUNT(*) as c FROM practices").get();
   if (practiceCount.c === 0) {
     const insert = db.prepare(`
-      INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, team_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const loc = "École de commerce Raymond-Uldry";
     const addr = "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève";
@@ -252,7 +311,7 @@ function seed(db) {
       const day = d.getDay(); // 1 = Monday, 4 = Thursday
       if (day === 1 || day === 4) {
         const iso = d.toISOString().slice(0, 10);
-        insert.run("practice", "Entraînement", iso, "20:00", "22:00", loc, addr, null, null);
+        insert.run("practice", "Entraînement", iso, "20:00", "22:00", loc, addr, null, null, primaryTeamId);
         created++;
       }
     }

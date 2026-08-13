@@ -19,9 +19,14 @@ export async function verifyPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
-// user = { id, role, name } — role is 'admin' or 'player'.
+// user = { id, role, name, team_id } — role is 'admin' | 'coach' | 'player'.
 export async function createSessionCookie(user) {
-  const token = await new SignJWT({ sub: user.id, role: user.role, name: user.name })
+  const token = await new SignJWT({
+    sub: user.id,
+    role: user.role,
+    name: user.name,
+    team_id: user.team_id ?? null,
+  })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
     .setExpirationTime("30d")
@@ -54,15 +59,21 @@ export async function getSession() {
   }
 }
 
-/** Any logged-in user — admin or player. */
+/** Any logged-in user — admin, coach, or player. */
 export async function isAuthenticated() {
   return !!(await getSession());
 }
 
-/** Admin-only areas (hero, announcements, players, budget, schedule). */
+/** Super-admin-only areas (billing, account management, all-teams views). */
 export async function isAdmin() {
   const session = await getSession();
   return !!session && session.role === "admin";
+}
+
+/** Team-management areas (schedule, tactics, practice board, presences) — admin or coach. */
+export async function isStaff() {
+  const session = await getSession();
+  return !!session && (session.role === "admin" || session.role === "coach");
 }
 
 export const SESSION_COOKIE_NAME = COOKIE_NAME;

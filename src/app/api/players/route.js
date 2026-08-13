@@ -23,8 +23,8 @@ export async function POST(request) {
 
   const { lastInsertRowid } = run(
     `INSERT INTO players
-      (first_name, last_name, jersey_number, license_number, email, phone, photo_data_url, position, games_played, total_points, ppg, active, sort_order)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (first_name, last_name, jersey_number, license_number, email, phone, photo_data_url, position, games_played, total_points, ppg, active, sort_order, team_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       p.first_name,
       p.last_name,
@@ -39,6 +39,7 @@ export async function POST(request) {
       p.ppg || 0,
       p.active === false ? 0 : 1,
       maxOrder + 1,
+      p.team_id || null,
     ]
   );
 
