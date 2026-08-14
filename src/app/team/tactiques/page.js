@@ -90,6 +90,22 @@ export default function TacticsAdminPage() {
           onTogglePublish={handleTogglePublish}
         />
       </div>
+
+      {/* Members-only credit — not shown on the public site, only inside
+          the logged-in team space (this whole /team route is login-gated
+          in src/app/team/layout.js). */}
+      <p className="mt-8 border-t border-black/5 pt-4 text-xs text-ibc-ink/40">
+        This editor's court-diagram animation approach was inspired by{" "}
+        <a
+          href="https://github.com/antonin-lfv/BasketBallCoach/blob/main/README.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-ibc-blue/70 hover:text-ibc-blue hover:underline"
+        >
+          antonin-lfv/BasketBallCoach
+        </a>{" "}
+        on GitHub.
+      </p>
     </div>
   );
 }
