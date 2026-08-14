@@ -26,9 +26,10 @@ export default function HeroSlider({ settings, announcement, sponsors, heroPhoto
 
   return (
     <section className="bg-court relative overflow-hidden text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.12]">
-        <CourtLines />
+      <div className="pointer-events-none absolute inset-0">
+        <CourtBackground />
       </div>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ibc-blue-dark/60 via-ibc-blue/70 to-ibc-blue-dark/80" />
 
       <div className="relative mx-auto min-h-[420px] max-w-6xl px-4 py-16 md:min-h-[480px] md:py-24">
         {currentType === "hero" && <HeroSlide settings={settings} />}
@@ -171,14 +172,46 @@ function PhotoSlide({ photo }) {
   );
 }
 
-function CourtLines() {
+// Full basketball court background photo-illustration: wood floor tone +
+// complete markings (both keys, both three-point arcs, free-throw circles,
+// center circle, boundary) — used behind every hero slide. A dark gradient
+// (see the sibling div above) sits on top so slide text stays legible.
+function CourtBackground() {
   return (
-    <svg viewBox="0 0 800 400" className="h-full w-full">
-      <rect x="10" y="10" width="780" height="380" fill="none" stroke="white" strokeWidth="4" />
-      <circle cx="400" cy="200" r="60" fill="none" stroke="white" strokeWidth="4" />
-      <line x1="400" y1="10" x2="400" y2="390" stroke="white" strokeWidth="4" />
-      <path d="M 10,120 A 190,190 0 0 1 10,280" fill="none" stroke="white" strokeWidth="4" />
-      <path d="M 790,120 A 190,190 0 0 0 790,280" fill="none" stroke="white" strokeWidth="4" />
+    <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" className="h-full w-full">
+      <defs>
+        <linearGradient id="courtWood" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#b9803f" />
+          <stop offset="50%" stopColor="#c99552" />
+          <stop offset="100%" stopColor="#a8712f" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="800" height="400" fill="url(#courtWood)" />
+      {/* plank lines */}
+      {Array.from({ length: 20 }).map((_, i) => (
+        <line
+          key={i}
+          x1={i * 40}
+          y1="0"
+          x2={i * 40}
+          y2="400"
+          stroke="#00000014"
+          strokeWidth="1"
+        />
+      ))}
+      <g fill="none" stroke="white" strokeWidth="4" opacity="0.9">
+        <rect x="10" y="10" width="780" height="380" />
+        <circle cx="400" cy="200" r="60" />
+        <line x1="400" y1="10" x2="400" y2="390" />
+        {/* left key + arc */}
+        <rect x="10" y="140" width="140" height="120" />
+        <circle cx="150" cy="200" r="60" />
+        <path d="M 10,60 A 260,260 0 0 0 10,340" />
+        {/* right key + arc */}
+        <rect x="650" y="140" width="140" height="120" />
+        <circle cx="650" cy="200" r="60" />
+        <path d="M 790,60 A 260,260 0 0 1 790,340" />
+      </g>
     </svg>
   );
 }

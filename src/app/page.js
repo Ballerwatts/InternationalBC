@@ -41,10 +41,9 @@ export default function HomePage() {
 
       {/* QUICK FACTS */}
       <section className="border-b border-black/5 bg-ibc-accent/10">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-8 text-center sm:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-8 text-center sm:grid-cols-3">
           <Fact label="Teams" value="4 squads" />
           <Fact label="Association Cantonale de Basketball Amateur" value="A.C.G.B.A." />
-          <Fact label="Practices" value="Mon & Thu · 8–10pm" />
           <Fact label="Season" value={settings.season_label} />
         </div>
       </section>
