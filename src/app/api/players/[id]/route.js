@@ -31,6 +31,7 @@ const FIELDS = [
   "active",
   "sort_order",
   "team_id",
+  "bio",
 ];
 
 export async function PUT(request, { params }) {

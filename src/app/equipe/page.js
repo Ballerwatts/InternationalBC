@@ -1,8 +1,9 @@
 import Image from "next/image";
+import Link from "next/link";
 import { query } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Teams — International Basketball Club Genève" };
+export const metadata = { title: "Teams — International Basketball Club Geneva (IBBC)" };
 
 export default function TeamPage() {
   const teams = query("SELECT * FROM teams ORDER BY sort_order ASC, name ASC");
@@ -19,10 +20,9 @@ export default function TeamPage() {
         </p>
         <h1 className="font-display text-4xl font-extrabold uppercase text-ibc-blue">Teams</h1>
         <p className="mx-auto mt-2 max-w-2xl text-sm text-ibc-ink/70">
-          International Basketball Club Genève fields several squads — two men&apos;s teams and a
-          women&apos;s team — all competing in the Geneva Amateur Basketball Association (ACGBA)
-          championship from October to May. IBBC 1 were champions of the Geneva Cup in the
-          2017–2018 season.
+          International Basketball Club Geneva (IBBC) fields four squads — the IBBC Youth Men&apos;s
+          Team (U18M), IBBC Women (NL1), IBBC Men (3LCM), and IBBC Men (2LCM) — all competing across
+          the Geneva basketball leagues (ACGBA) from October to May.
         </p>
       </header>
 
@@ -70,13 +70,23 @@ export default function TeamPage() {
       {players.length === 0 && (
         <p className="text-center text-ibc-ink/60">No players yet.</p>
       )}
+
+      <p className="mt-14 text-center text-sm text-ibc-ink/60">
+        Looking for a specific player?{" "}
+        <Link href="/membres" className="font-semibold text-ibc-blue hover:underline">
+          Search all members →
+        </Link>
+      </p>
     </div>
   );
 }
 
 function PlayerCard({ p }) {
   return (
-    <div className="group overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-lg">
+    <Link
+      href={`/membres/${p.id}`}
+      className="group overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-lg"
+    >
       <div className="relative aspect-square bg-ibc-blue">
         {p.photo_data_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -108,6 +118,6 @@ function PlayerCard({ p }) {
           <span className="font-semibold text-ibc-blue">{p.ppg} pts/g</span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

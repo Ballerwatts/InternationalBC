@@ -15,7 +15,7 @@ function nextPractices(limit = 4) {
 
 function formatDate(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("fr-CH", { weekday: "long", day: "numeric", month: "long" });
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
 export default function HomePage() {
@@ -27,6 +27,7 @@ export default function HomePage() {
   const topPlayers = query(
     "SELECT * FROM players WHERE active = 1 ORDER BY total_points DESC LIMIT 3"
   );
+  const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC");
 
   return (
     <div>
@@ -51,13 +52,13 @@ export default function HomePage() {
                 href="/calendrier"
                 className="rounded-full bg-ibc-accent px-6 py-3 text-sm font-bold uppercase tracking-wide text-ibc-ink shadow-lg transition hover:brightness-95"
               >
-                Voir le calendrier
+                View calendar
               </Link>
               <Link
                 href="/equipe"
                 className="rounded-full border-2 border-white/70 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white hover:text-ibc-blue"
               >
-                Découvrir l&apos;équipe
+                Meet the teams
               </Link>
             </div>
           </div>
@@ -66,15 +67,13 @@ export default function HomePage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={settings.team_photo_data_url}
-                alt="Photo de l'équipe International Basketball Club Genève"
+                alt="International Basketball Club Geneva team photo"
                 className="h-full w-full object-cover"
               />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center text-white/70">
                 <Image src="/logo.png" alt="Logo" width={96} height={96} />
-                <p className="text-sm">
-                  Photo d&apos;équipe à venir — ajoutez-la depuis l&apos;espace admin.
-                </p>
+                <p className="text-sm">Team photo coming soon — add it from the admin area.</p>
               </div>
             )}
           </div>
@@ -84,17 +83,17 @@ export default function HomePage() {
       {/* QUICK FACTS */}
       <section className="border-b border-black/5 bg-ibc-accent/10">
         <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-8 text-center sm:grid-cols-4">
-          <Fact label="Ligue" value="2ème Ligue Cantonale" />
-          <Fact label="Fédération" value="A.C.G.B.A." />
-          <Fact label="Entraînements" value="Lun & Jeu · 20h–22h" />
-          <Fact label="Saison" value={settings.season_label} />
+          <Fact label="Teams" value="4 squads" />
+          <Fact label="Federation" value="A.C.G.B.A." />
+          <Fact label="Practices" value="Mon & Thu · 8–10pm" />
+          <Fact label="Season" value={settings.season_label} />
         </div>
       </section>
 
       {/* ANNOUNCEMENTS */}
       {announcements.length > 0 && (
         <section className="mx-auto max-w-6xl px-4 py-14">
-          <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">Annonces</h2>
+          <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">Announcements</h2>
           <div className="mt-6 grid gap-5 md:grid-cols-3">
             {announcements.map((a) => (
               <article
@@ -102,7 +101,7 @@ export default function HomePage() {
                 className="rounded-xl border border-black/5 bg-white p-5 shadow-sm ring-1 ring-black/5"
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-ibc-blue/70">
-                  {new Date(a.created_at).toLocaleDateString("fr-CH")}
+                  {new Date(a.created_at).toLocaleDateString("en-GB")}
                 </p>
                 <h3 className="mt-1 font-display text-xl font-bold text-ibc-ink">{a.title}</h3>
                 <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/75">{a.body}</p>
@@ -117,11 +116,11 @@ export default function HomePage() {
         <div className="mx-auto grid max-w-6xl gap-10 px-4 md:grid-cols-2">
           <div>
             <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">
-              Prochains rendez-vous
+              Upcoming
             </h2>
             <ul className="mt-6 space-y-3">
               {upcoming.length === 0 && (
-                <li className="text-sm text-ibc-ink/60">Aucun événement à venir pour le moment.</li>
+                <li className="text-sm text-ibc-ink/60">No upcoming events right now.</li>
               )}
               {upcoming.map((p) => (
                 <li
@@ -133,14 +132,14 @@ export default function HomePage() {
                       {formatDate(p.practice_date)}
                     </p>
                     <p className="text-sm text-ibc-ink/60">
-                      {p.start_time}–{p.end_time} · {p.kind === "game" ? `Match${p.opponent ? " vs " + p.opponent : ""}` : "Entraînement"}
+                      {p.start_time}–{p.end_time} · {p.kind === "game" ? `Game${p.opponent ? " vs " + p.opponent : ""}` : "Practice"}
                     </p>
                   </div>
                   <a
                     href={`/api/calendar/${p.id}.ics`}
                     className="shrink-0 rounded-full border-2 border-ibc-blue px-3 py-1.5 text-xs font-bold uppercase text-ibc-blue transition hover:bg-ibc-blue hover:text-white"
                   >
-                    + Agenda
+                    + Add to calendar
                   </a>
                 </li>
               ))}
@@ -150,19 +149,19 @@ export default function HomePage() {
                 href="/calendrier"
                 className="rounded-full bg-ibc-blue px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition hover:brightness-110"
               >
-                Calendrier complet
+                Full calendar
               </Link>
               <a
                 href="/api/calendar.ics"
                 className="rounded-full border-2 border-ibc-blue px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-ibc-blue transition hover:bg-ibc-blue hover:text-white"
               >
-                S&apos;abonner au calendrier
+                Subscribe to calendar
               </a>
             </div>
           </div>
           <div>
             <h3 className="font-display text-xl font-bold uppercase text-ibc-blue">
-              Lieu d&apos;entraînement
+              Practice location
             </h3>
             <p className="mt-2 text-sm text-ibc-ink/70">
               {settings.practice_location_name} — {settings.practice_location_address}
@@ -176,13 +175,13 @@ export default function HomePage() {
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="grid gap-10 md:grid-cols-2 md:items-center">
           <div>
-            <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">Le club</h2>
+            <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">The Club</h2>
             <p className="mt-4 whitespace-pre-line text-ibc-ink/75">{settings.club_about}</p>
           </div>
           {topPlayers.length > 0 && (
             <div>
               <h3 className="font-display text-xl font-bold uppercase text-ibc-blue">
-                Meilleurs marqueurs
+                Top scorers
               </h3>
               <ul className="mt-4 space-y-2">
                 {topPlayers.map((p, i) => (
@@ -194,7 +193,7 @@ export default function HomePage() {
                       <span className="mr-2 text-ibc-accent-deep">#{i + 1}</span>
                       {p.first_name} {p.last_name}
                     </span>
-                    <span className="text-sm text-ibc-ink/60">{p.ppg} pts/match</span>
+                    <span className="text-sm text-ibc-ink/60">{p.ppg} pts/game</span>
                   </li>
                 ))}
               </ul>
@@ -202,12 +201,43 @@ export default function HomePage() {
                 href="/equipe"
                 className="mt-4 inline-block text-sm font-bold uppercase text-ibc-blue hover:underline"
               >
-                Voir toute l&apos;équipe →
+                See all teams →
               </Link>
             </div>
           )}
         </div>
       </section>
+
+      {/* SPONSORS */}
+      {sponsors.length > 0 && (
+        <section className="border-t border-black/5 bg-ibc-ink/[0.02] py-14">
+          <div className="mx-auto max-w-6xl px-4">
+            <h2 className="text-center font-display text-2xl font-bold uppercase text-ibc-blue">
+              Our Sponsors
+            </h2>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-8">
+              {sponsors.map((s) => (
+                <a
+                  key={s.id}
+                  href={s.website_url || undefined}
+                  target={s.website_url ? "_blank" : undefined}
+                  rel={s.website_url ? "noopener noreferrer" : undefined}
+                  className="flex flex-col items-center gap-2 text-center"
+                  title={s.description || s.name}
+                >
+                  {s.logo_data_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.logo_data_url} alt={s.name} className="h-16 w-auto object-contain" />
+                  ) : (
+                    <span className="font-display text-lg font-bold text-ibc-blue">{s.name}</span>
+                  )}
+                  <span className="text-xs text-ibc-ink/60">{s.name}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

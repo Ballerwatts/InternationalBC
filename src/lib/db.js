@@ -200,6 +200,32 @@ function migrate(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       decided_at TEXT
     );
+
+    -- Club sponsors, shown publicly (home page) and managed from
+    -- /admin/sponsors. Multiple sponsors supported.
+    CREATE TABLE IF NOT EXISTS sponsors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      logo_data_url TEXT,
+      description TEXT,
+      website_url TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Club-level income/expense ledger ("in's and out's") — distinct from
+    -- the per-player payments table (which tracks what each player owes
+    -- the club). This is the whole-club cash book: sponsor income, other
+    -- income, and expenses like gym rental, referees, dinners, team events.
+    CREATE TABLE IF NOT EXISTS budget_entries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_type TEXT NOT NULL, -- 'income' | 'expense'
+      category TEXT NOT NULL, -- income: 'player_fees' | 'sponsor' | 'other' — expense: 'gym' | 'license' | 'referees' | 'diner' | 'team_event' | 'other'
+      description TEXT,
+      amount REAL NOT NULL,
+      entry_date TEXT NOT NULL, -- 'YYYY-MM-DD'
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Lightweight upgrade path for dev databases created before team_id /
@@ -214,6 +240,47 @@ function migrate(db) {
   addColumnIfMissing(db, "users", "google_id", "TEXT");
   addColumnIfMissing(db, "access_requests", "team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
   addColumnIfMissing(db, "access_requests", "requested_team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
+  addColumnIfMissing(db, "players", "bio", "TEXT");
+
+  migrateTeamNames(db);
+}
+
+// One-time rename: the club originally seeded 3 teams (IBBC 1 / IBBC 2 /
+// IBBC Dames). The club now uses 4 named squads with league codes. Renaming
+// in place (rather than delete+insert) preserves every existing team_id
+// foreign key on players/practices/plays/users/etc. — nobody's roster
+// assignment moves. "IBBC 1" becomes "IBBC Men (2LCM)", which is where the
+// originally-seeded/currently-listed players live.
+function migrateTeamNames(db) {
+  const RENAMES = [
+    { from: "IBBC 1", toName: "IBBC Men (2LCM)", toCategory: "Hommes 1 — 2ème Ligue Cantonale" },
+    { from: "IBBC 2", toName: "IBBC Men (3LCM)", toCategory: "3ème Ligue Cantonale Masculine" },
+    { from: "IBBC Dames", toName: "IBBC Women (NL1)", toCategory: "NL1 — National League 1" },
+  ];
+  for (const r of RENAMES) {
+    const existing = db.prepare("SELECT id FROM teams WHERE name = ?").get(r.from);
+    if (existing) {
+      db.prepare("UPDATE teams SET name = ?, category = ? WHERE id = ?").run(
+        r.toName,
+        r.toCategory,
+        existing.id
+      );
+    }
+  }
+  const hasYouth = db.prepare("SELECT id FROM teams WHERE name = ?").get("IBBC Youth Men's Team (U18M)");
+  if (!hasYouth) {
+    const teamCount = db.prepare("SELECT COUNT(*) as c FROM teams").get().c;
+    if (teamCount > 0) {
+      // Only add the 4th squad if teams already exist (fresh DBs get all 4
+      // from SEED_TEAMS below; this only backfills already-seeded DBs).
+      const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), -1) as m FROM teams").get().m;
+      db.prepare("INSERT INTO teams (name, category, sort_order) VALUES (?, ?, ?)").run(
+        "IBBC Youth Men's Team (U18M)",
+        "U18M — Youth Men",
+        maxOrder + 1
+      );
+    }
+  }
 }
 
 function addColumnIfMissing(db, table, column, definition) {
@@ -225,14 +292,14 @@ function addColumnIfMissing(db, table, column, definition) {
 
 const DEFAULT_SETTINGS = {
   admin_password_hash: "", // set on first run via /api/auth/bootstrap or env var
-  hero_headline: "International Basketball Club Genève",
-  hero_subheadline: "2ème Ligue Cantonale — A.C.G.B.A.",
+  hero_headline: "International Basketball Club Geneva",
+  hero_subheadline: "IBBC — Geneva Amateur Basketball Association",
   hero_body:
-    "Le club de basketball IBC Genève. Une seule équipe, un seul objectif : représenter fièrement nos couleurs chaque semaine en 2ème ligue cantonale.",
+    "IBBC Geneva fields four squads — U18M, NL1, 3LCM and 2LCM — competing every week across the Geneva basketball leagues.",
   hero_image_data_url: "",
   team_photo_data_url: "",
   club_about:
-    "International Basketball Club Genève réunit une équipe qui évolue en 2ème ligue cantonale (A.C.G.B.A.), la plus haute ligue amateur du canton. Entraînements le lundi et le jeudi, matches le week-end — dans l'esprit sportif et communautaire du club.",
+    "International Basketball Club Geneva (IBBC) fields four squads — IBBC Youth Men's Team (U18M), IBBC Women (NL1), IBBC Men (3LCM) and IBBC Men (2LCM) — competing in the Geneva Amateur Basketball Association (ACGBA) championship from October to May, in a spirit of sport and community.",
   season_label: "2026 – 2027",
   budget_annual_total: "4000",
   budget_gym: "1800",
@@ -257,9 +324,10 @@ const SEED_PLAYERS = [
 ];
 
 const SEED_TEAMS = [
-  { name: "IBBC 1", category: "Hommes 1 — 2ème Ligue Cantonale" },
-  { name: "IBBC 2", category: "Hommes 2" },
-  { name: "IBBC Dames", category: "Dames" },
+  { name: "IBBC Youth Men's Team (U18M)", category: "U18M — Youth Men" },
+  { name: "IBBC Women (NL1)", category: "NL1 — National League 1" },
+  { name: "IBBC Men (3LCM)", category: "3ème Ligue Cantonale Masculine" },
+  { name: "IBBC Men (2LCM)", category: "Hommes 1 — 2ème Ligue Cantonale" },
 ];
 
 function seed(db) {
@@ -274,9 +342,12 @@ function seed(db) {
     const insert = db.prepare("INSERT INTO teams (name, category, sort_order) VALUES (?, ?, ?)");
     SEED_TEAMS.forEach((t, i) => insert.run(t.name, t.category, i));
   }
-  // First team ("IBBC 1") is the squad this app was originally built
-  // around — everything not-yet-assigned to a team defaults to it below.
-  const primaryTeamId = db.prepare("SELECT id FROM teams ORDER BY sort_order ASC LIMIT 1").get()?.id || null;
+  // "IBBC Men (2LCM)" is the squad this app was originally built around —
+  // everything not-yet-assigned to a team defaults to it below.
+  const primaryTeamId =
+    db.prepare("SELECT id FROM teams WHERE name = ?").get("IBBC Men (2LCM)")?.id ||
+    db.prepare("SELECT id FROM teams ORDER BY sort_order ASC LIMIT 1").get()?.id ||
+    null;
 
   const playerCount = db.prepare("SELECT COUNT(*) as c FROM players").get();
   if (playerCount.c === 0) {

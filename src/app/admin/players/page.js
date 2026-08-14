@@ -16,16 +16,20 @@ const EMPTY = {
   total_points: 0,
   ppg: 0,
   active: 1,
+  team_id: "",
+  bio: "",
 };
 
 export default function PlayersAdminPage() {
   const [players, setPlayers] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [newPlayer, setNewPlayer] = useState(EMPTY);
 
   function refresh() {
     fetch("/api/players").then((r) => r.json()).then(setPlayers);
+    fetch("/api/admin/teams").then((r) => r.json()).then(setTeams);
   }
 
   useEffect(refresh, []);
@@ -113,6 +117,18 @@ export default function PlayersAdminPage() {
             onChange={(e) => setNewPlayer({ ...newPlayer, phone: e.target.value })}
             className="input"
           />
+          <select
+            value={newPlayer.team_id}
+            onChange={(e) => setNewPlayer({ ...newPlayer, team_id: e.target.value ? Number(e.target.value) : "" })}
+            className="input col-span-2"
+          >
+            <option value="">Aucune équipe</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
           <button className="col-span-2 rounded-full bg-ibc-accent py-2 text-sm font-bold uppercase text-ibc-ink hover:brightness-95">
             Créer le profil
           </button>
@@ -124,6 +140,7 @@ export default function PlayersAdminPage() {
           <PlayerRow
             key={p.id}
             player={p}
+            teams={teams}
             open={openId === p.id}
             onToggle={() => setOpenId(openId === p.id ? null : p.id)}
             onSave={(patch) => updatePlayer(p.id, patch)}
@@ -144,7 +161,7 @@ export default function PlayersAdminPage() {
   );
 }
 
-function PlayerRow({ player, open, onToggle, onSave, onDelete }) {
+function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
   const [form, setForm] = useState(player);
 
   useEffect(() => setForm(player), [player]);
@@ -200,6 +217,21 @@ function PlayerRow({ player, open, onToggle, onSave, onDelete }) {
           <LabeledInput label="Email" value={form.email || ""} onChange={(v) => setForm({ ...form, email: v })} />
           <LabeledInput label="Téléphone" value={form.phone || ""} onChange={(v) => setForm({ ...form, phone: v })} />
           <LabeledInput label="Poste" value={form.position || ""} onChange={(v) => setForm({ ...form, position: v })} />
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Équipe</label>
+            <select
+              value={form.team_id || ""}
+              onChange={(e) => setForm({ ...form, team_id: e.target.value ? Number(e.target.value) : null })}
+              className="input w-full"
+            >
+              <option value="">Aucune équipe</option>
+              {(teams || []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <LabeledInput
             label="Matchs joués"
             type="number"
@@ -219,6 +251,17 @@ function PlayerRow({ player, open, onToggle, onSave, onDelete }) {
             value={form.ppg}
             onChange={(v) => setForm({ ...form, ppg: Number(v) })}
           />
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Bio / stats (visible sur le profil public)
+            </label>
+            <textarea
+              value={form.bio || ""}
+              onChange={(e) => setForm({ ...form, bio: e.target.value })}
+              className="input w-full"
+              rows={3}
+            />
+          </div>
           <label className="col-span-2 flex items-center gap-2 text-sm">
             <input
               type="checkbox"

@@ -1,6 +1,7 @@
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { LanguageProvider } from "@/components/LanguageProvider";
 
 // Note: intentionally using system font stacks (defined in globals.css)
 // instead of next/font/google — this keeps the production build fully
@@ -9,9 +10,9 @@ import Footer from "@/components/Footer";
 // self-hosted font files any time; see README "Fonts" section.
 
 export const metadata = {
-  title: "International Basketball Club Genève",
+  title: "International Basketball Club Geneva (IBBC)",
   description:
-    "Site officiel de l'International Basketball Club Genève — 2ème Ligue Cantonale (A.C.G.B.A.). Équipe, calendrier des entraînements et matches, tactiques, et vie du club.",
+    "Official site of International Basketball Club Geneva (IBBC) — four squads competing across the Geneva basketball leagues (A.C.G.B.A.). Teams, calendar, tactics, and club life.",
   icons: {
     icon: "/favicon.ico",
   },
@@ -19,11 +20,13 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="fr" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-white text-ibc-ink">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <LanguageProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </LanguageProvider>
       </body>
     </html>
   );

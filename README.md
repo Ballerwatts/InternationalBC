@@ -1,18 +1,37 @@
-# International Basketball Club Genève — site + admin backend
+# International Basketball Club Geneva (IBBC) — site + admin backend
 
 A self-contained Next.js app for the club: public website (homepage, teams,
-calendar) plus a password-protected admin backend to run all of it — no
-external CMS, no separate database service required to get started.
+players/members directory, calendar) plus a password-protected admin
+backend to run all of it — no external CMS, no separate database service
+required to get started. Site-facing copy uses **English by default**, with
+a French toggle for the site's nav/footer/page chrome (see "Language" below).
 
-## Multi-team & roles
+The club's official name is **International Basketball Club Geneva**,
+short form **IBBC**. Note: this differs from `IBC`, which is still used
+internally in code identifiers (CSS variable prefix `--ibc-*`, the session
+cookie name `ibc_session`, the SQLite filename `ibc.db`, the Fly.io app URL
+`internationalbc.fly.dev`) — kept as-is intentionally, since renaming those
+would change the live URL/deploy and isn't needed for any user-facing
+purpose. Every user-facing label instead reads "IBBC".
 
-The club fields several squads (seeded as **IBBC 1**, **IBBC 2**, **IBBC
-Dames** — rename/add more from `/admin/teams`). Everything squad-specific —
-roster, schedule, tactics, practice board, presences — is scoped to a team.
-Three roles:
+## Teams & roles
+
+The club fields four squads, seeded on first run and renamed in place on
+any existing database (so no player ever loses their team assignment):
+
+- **IBBC Youth Men's Team (U18M)**
+- **IBBC Women (NL1)**
+- **IBBC Men (3LCM)**
+- **IBBC Men (2LCM)** — "Hommes 1 — 2ème Ligue Cantonale". This is the
+  squad the app was originally built around, so every player seeded/listed
+  before the 4-team rename lives here.
+
+Rename/add more from `/admin/teams`. Everything squad-specific — roster,
+schedule, tactics, practice board, presences — is scoped to a team. Three
+roles:
 
 - **admin (super-admin)** — sees and manages every team, plus billing,
-  account management, and site-wide content (hero, announcements).
+  account management, and site-wide content (hero, announcements, sponsors).
 - **coach** — manages only the team(s) they're assigned to: that team's
   schedule, tactics, practice board, presences, roster.
 - **player** — sees only their own team's tactics, practice board, and
@@ -20,13 +39,19 @@ Three roles:
 
 A user's team is set by a super-admin, either directly (`/admin/users`,
 "+ Créer un compte") or when approving a pending access request (see
-"Signup & access requests" below) — matching "when they sign up, the
-super-admin dispatches what team the player is supposed to be on."
+"Signup & access requests" below). Players can also be assigned/reassigned
+to a team from `/admin/players` — every player row now has a team picker.
 
-**Known gap:** the admin Players page (`/admin/players`) doesn't yet have a
-team picker in its UI — the data model and API already support
-`team_id` on a player, so assigning existing players to a team currently
-needs a direct API call or a quick follow-up UI addition.
+## Players & Members directory
+
+`/membres` lists every active player/member with a search bar (filters by
+name, team, or position) and a team filter dropdown. Clicking a player opens
+their profile at `/membres/[id]`, which shows their team + role badge (if
+they have a linked login), an optional bio/stats blurb (editable from
+`/admin/players`), season stats, and contact info (email/phone) — contact
+details are hidden from the public and only shown to signed-in club members
+(staff or players), per request. Rosters on `/equipe` also link through to
+these same profiles.
 
 ## Sign in with Google (admin only)
 
@@ -39,6 +64,43 @@ Google account. Infomaniak sign-in was scoped out for this pass (Infomaniak
 doesn't offer as turnkey a public OAuth flow as Google) — ask if you want it
 built next; you'd need to check what Infomaniak's current OAuth/SSO
 offering supports for third-party apps.
+
+## Language (English default, French toggle)
+
+The site defaults to English. A EN/FR toggle in the header (and mobile nav)
+switches the site's built-in interface text — nav, footer, page titles,
+search labels, buttons — and persists the choice (browser storage, per
+visitor). This covers the site's chrome; it does **not** auto-translate
+admin-entered free text (hero headline/body, club description,
+announcements, sponsor descriptions, player bios) — that's shown exactly as
+an admin typed it, in whichever language they wrote it. Translation strings
+live in `src/lib/i18n.js`; add a key there and reference it via
+`useLanguage()`'s `t()` to extend coverage to more of the UI.
+
+## Budget — income/expense ledger
+
+`/admin/budget` is a club-level cash book ("in's and out's"): every row is
+tagged **income** (player fees, sponsor income, other) or **expense** (gym,
+license per person, referees, dinner, team event, other), with a running
+total for money in, money out, and net balance. The original per-player
+dues tracker (who owes how much toward the season's gym/license/referee
+split) is still there, collapsed under "Afficher le suivi des cotisations
+par joueur" — it's a different, complementary view (who owes the club)
+from the new ledger (what actually moved through the club's account).
+
+## Sponsors
+
+`/admin/sponsors` manages a list of sponsors (name, logo upload, short
+description, optional website link) — multiple sponsors supported. Sponsors
+with a logo (or just a name, if no logo yet) appear in a "Our Sponsors"
+strip on the homepage, linking out to their site if one's set.
+
+## Official contact
+
+The club's official contact block (International Basketball Club Geneva,
+C/O Souhail BELHADJ — Club President, Chemin Eugène-Rigot 2, Case postale
+136, 1211 Genève 21, internationalbbcgeneve@gmail.com) is shown on `/club`
+and in the site footer on every page.
 
 ## What's included
 

@@ -10,6 +10,7 @@ const ITEMS = [
   { href: "/admin/announcements", label: "Annonces" },
   { href: "/admin/players", label: "Joueurs" },
   { href: "/admin/budget", label: "Budget" },
+  { href: "/admin/sponsors", label: "Sponsors" },
   { href: "/admin/schedule", label: "Calendrier" },
   { href: "/admin/disponibilites", label: "Disponibilités" },
   { href: "/admin/presences", label: "Présences" },
