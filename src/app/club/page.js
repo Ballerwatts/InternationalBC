@@ -16,7 +16,7 @@ export default function ClubPage() {
 
       <div className="mt-8 grid gap-6 sm:grid-cols-3">
         <InfoCard label="Teams" value="4 squads" />
-        <InfoCard label="Federation" value="A.C.G.B.A." />
+        <InfoCard label="Association Cantonale de Basketball Amateur" value="A.C.G.B.A." />
         <InfoCard label="Season" value={settings.season_label} />
       </div>
 

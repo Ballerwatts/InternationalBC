@@ -32,6 +32,7 @@ const FIELDS = [
   "sort_order",
   "team_id",
   "bio",
+  "nationality",
 ];
 
 export async function PUT(request, { params }) {
