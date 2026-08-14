@@ -12,6 +12,7 @@ export async function GET() {
     authenticated: !!session,
     role: session?.role || null,
     name: session?.name || null,
+    team_id: session?.team_id ?? null,
     needsSetup: userCount.length === 0,
   });
 }

@@ -5,10 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 
 const ITEMS = [
   { href: "/admin", label: "Tableau de bord" },
-  { href: "/admin/teams", label: "Équipes" },
+  { href: "/admin/teams", label: "Teams" },
   { href: "/admin/hero", label: "Accueil (hero)" },
   { href: "/admin/announcements", label: "Annonces" },
-  { href: "/admin/players", label: "Joueurs" },
+  { href: "/admin/players", label: "Members" },
   { href: "/admin/budget", label: "Budget" },
   { href: "/admin/sponsors", label: "Sponsors" },
   { href: "/admin/schedule", label: "Calendrier" },
@@ -22,8 +22,12 @@ export default function AdminNav() {
   const router = useRouter();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // best-effort: still force the user out even if the request fails.
+    }
+    window.location.href = "/login";
   }
 
   return (

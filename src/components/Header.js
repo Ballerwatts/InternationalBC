@@ -9,10 +9,10 @@ export default function Header() {
 
   const NAV = [
     { href: "/", label: t("nav.home") },
-    { href: "/equipe", label: t("nav.teams") },
-    { href: "/membres", label: t("nav.members") },
-    { href: "/calendrier", label: t("nav.calendar") },
     { href: "/club", label: t("nav.club") },
+    { href: "/equipe", label: t("nav.teams") },
+    { href: "/calendrier", label: t("nav.calendar") },
+    { href: "/club#contact", label: t("nav.contact") },
   ];
 
   return (

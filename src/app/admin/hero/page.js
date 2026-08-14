@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { resizeImageToDataUrl } from "@/lib/image-client";
+import ImageDropzone from "@/components/ImageDropzone";
 
 export default function HeroAdminPage() {
   const [settings, setSettings] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings").then((r) => r.json()).then(setSettings);
@@ -16,20 +17,24 @@ export default function HeroAdminPage() {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
-    await fetch("/api/settings", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  }
-
-  async function handlePhoto(field, file) {
-    if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 1600);
-    setSettings((s) => ({ ...s, [field]: dataUrl }));
+    setSaveError(false);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) throw new Error("save_failed");
+      setSaved(true);
+    } catch {
+      setSaveError(true);
+    } finally {
+      setSaving(false);
+      setTimeout(() => {
+        setSaved(false);
+        setSaveError(false);
+      }, 2500);
+    }
   }
 
   if (!settings) return <p className="text-ibc-ink/60">Chargement…</p>;
@@ -65,16 +70,14 @@ export default function HeroAdminPage() {
         />
       </Field>
 
-      <Field label="Photo d'équipe (page d'accueil)">
-        <input type="file" accept="image/*" onChange={(e) => handlePhoto("team_photo_data_url", e.target.files?.[0])} />
-        {settings.team_photo_data_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={settings.team_photo_data_url}
-            alt="Aperçu"
-            className="mt-2 max-h-48 rounded-lg border border-black/10"
-          />
-        )}
+      <Field label="Photo d'équipe (page d'accueil) — PNG ou JPEG">
+        <ImageDropzone
+          value={settings.team_photo_data_url}
+          onChange={(dataUrl) => setSettings((s) => ({ ...s, team_photo_data_url: dataUrl }))}
+          maxWidth={1600}
+          size={160}
+          label="Cliquez ou glissez une photo (PNG ou JPEG)"
+        />
       </Field>
 
       <Field label="Présentation du club (page « Le club » + accueil)">
@@ -131,7 +134,8 @@ export default function HeroAdminPage() {
         >
           {saving ? "Enregistrement…" : "Enregistrer"}
         </button>
-        {saved && <span className="text-sm font-semibold text-green-600">Enregistré ✓</span>}
+        {saved && <span className="text-sm font-semibold text-green-600">✓ Enregistré</span>}
+        {saveError && <span className="text-sm font-semibold text-red-600">✗ Échec de l&apos;enregistrement</span>}
       </div>
 
       <style jsx>{`
@@ -160,7 +164,7 @@ const MAX_HERO_PHOTOS = 3;
 
 function HeroPhotosEditor() {
   const [photos, setPhotos] = useState([]);
-  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   function refresh() {
     fetch("/api/hero-photos").then((r) => r.json()).then(setPhotos);
@@ -168,20 +172,23 @@ function HeroPhotosEditor() {
 
   useEffect(refresh, []);
 
-  async function handleUpload(file) {
-    if (!file) return;
+  async function handleUpload(dataUrl) {
+    if (!dataUrl) return;
+    setError("");
     if (photos.length >= MAX_HERO_PHOTOS) {
-      alert(`Maximum ${MAX_HERO_PHOTOS} photos supplémentaires.`);
+      setError(`Maximum ${MAX_HERO_PHOTOS} photos supplémentaires.`);
       return;
     }
-    setUploading(true);
-    const dataUrl = await resizeImageToDataUrl(file, 1600, 0.85, { keepPng: true });
-    await fetch("/api/hero-photos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_data_url: dataUrl }),
-    });
-    setUploading(false);
+    try {
+      const res = await fetch("/api/hero-photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_data_url: dataUrl }),
+      });
+      if (!res.ok) throw new Error("upload_failed");
+    } catch {
+      setError("Échec de l'envoi de la photo. Réessayez.");
+    }
     refresh();
   }
 
@@ -215,19 +222,20 @@ function HeroPhotosEditor() {
             </button>
           </div>
         ))}
-      </div>
-      {photos.length < MAX_HERO_PHOTOS ? (
-        <div className="mt-3">
-          <input
-            type="file"
-            accept="image/*"
-            disabled={uploading}
-            onChange={(e) => handleUpload(e.target.files?.[0])}
+        {photos.length < MAX_HERO_PHOTOS && (
+          <ImageDropzone
+            value=""
+            onChange={handleUpload}
+            maxWidth={1600}
+            size={96}
+            label="+ Ajouter (PNG/JPEG)"
           />
-        </div>
-      ) : (
+        )}
+      </div>
+      {photos.length >= MAX_HERO_PHOTOS && (
         <p className="mt-3 text-xs text-ibc-ink/50">Nombre maximum de photos atteint.</p>
       )}
+      {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
     </div>
   );
 }

@@ -25,10 +25,10 @@ export default function AdminDashboard() {
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Joueurs actifs" value={playerCount} href="/admin/players" />
+        <StatCard label="Active members" value={playerCount} href="/admin/players" />
         <StatCard label="Événements à venir" value={upcomingCount} href="/admin/schedule" />
         <StatCard label="Schémas tactiques" value={playsCount} href="/admin/tactiques" />
-        <StatCard label="Cotisations encaissées (CHF)" value={totalPaid} href="/admin/budget" />
+        <StatCard label="Dues collected (CHF)" value={totalPaid} href="/admin/budget" />
       </div>
 
       <div className="mt-8 rounded-xl border border-ibc-accent bg-ibc-accent/10 p-5">

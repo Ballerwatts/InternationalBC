@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { resizeImageToDataUrl } from "@/lib/image-client";
+import ImageDropzone from "@/components/ImageDropzone";
 
 const EMPTY = { name: "", logo_data_url: "", description: "", website_url: "", tier: "standard" };
 
@@ -16,12 +16,6 @@ export default function SponsorsAdminPage() {
   }
 
   useEffect(refresh, []);
-
-  async function handleLogo(file, setter) {
-    if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 600, 0.85, { keepPng: true });
-    setter((f) => ({ ...f, logo_data_url: dataUrl }));
-  }
 
   async function createSponsor(e) {
     e.preventDefault();
@@ -77,15 +71,15 @@ export default function SponsorsAdminPage() {
             onChange={(e) => setNewSponsor({ ...newSponsor, name: e.target.value })}
             className="input col-span-2"
           />
-          <div className="col-span-2 flex items-center gap-3">
-            {newSponsor.logo_data_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={newSponsor.logo_data_url} alt="" className="h-12 w-12 rounded object-contain" />
-            )}
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleLogo(e.target.files?.[0], setNewSponsor)}
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Logo (PNG ou JPEG)
+            </label>
+            <ImageDropzone
+              value={newSponsor.logo_data_url}
+              onChange={(dataUrl) => setNewSponsor((f) => ({ ...f, logo_data_url: dataUrl }))}
+              maxWidth={600}
+              size={100}
             />
           </div>
           <input
@@ -153,12 +147,6 @@ function SponsorRow({ sponsor, open, onToggle, onSave, onDelete }) {
 
   useEffect(() => setForm(sponsor), [sponsor]);
 
-  async function handleLogo(file) {
-    if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 600, 0.85, { keepPng: true });
-    setForm((f) => ({ ...f, logo_data_url: dataUrl }));
-  }
-
   return (
     <li className="rounded-xl border border-black/5 bg-white shadow-sm">
       <button onClick={onToggle} className="flex w-full items-center gap-3 px-4 py-3 text-left">
@@ -184,9 +172,14 @@ function SponsorRow({ sponsor, open, onToggle, onSave, onDelete }) {
 
       {open && (
         <div className="grid grid-cols-2 gap-3 border-t border-black/5 p-4">
-          <label className="col-span-2 text-xs font-bold uppercase text-ibc-blue">Logo</label>
-          <div className="col-span-2 flex items-center gap-3">
-            <input type="file" accept="image/*" onChange={(e) => handleLogo(e.target.files?.[0])} />
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue">Logo (PNG ou JPEG)</label>
+            <ImageDropzone
+              value={form.logo_data_url}
+              onChange={(dataUrl) => setForm((f) => ({ ...f, logo_data_url: dataUrl }))}
+              maxWidth={600}
+              size={100}
+            />
           </div>
           <input
             className="input col-span-2"

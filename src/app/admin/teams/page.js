@@ -28,7 +28,7 @@ export default function TeamsAdminPage() {
       setForm(EMPTY);
       refresh();
     } else {
-      setError((await res.json()).error || "Erreur");
+      setError((await res.json()).error || "Something went wrong");
     }
   }
 
@@ -42,18 +42,44 @@ export default function TeamsAdminPage() {
   }
 
   async function remove(id) {
-    if (!confirm("Supprimer cette équipe ? Les joueurs/comptes qui y sont liés seront détachés.")) return;
+    if (!confirm("Delete this team? Any linked players/accounts will be unassigned.")) return;
     await fetch(`/api/admin/teams/${id}`, { method: "DELETE" });
+    refresh();
+  }
+
+  async function move(index, direction) {
+    const target = index + direction;
+    if (target < 0 || target >= teams.length) return;
+    const a = teams[index];
+    const b = teams[target];
+    // Optimistic local swap so the reorder feels instant.
+    const next = [...teams];
+    next[index] = b;
+    next[target] = a;
+    setTeams(next);
+    await Promise.all([
+      fetch(`/api/admin/teams/${a.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...a, sort_order: b.sort_order }),
+      }),
+      fetch(`/api/admin/teams/${b.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...b, sort_order: a.sort_order }),
+      }),
+    ]);
     refresh();
   }
 
   return (
     <div className="max-w-2xl">
-      <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Équipes</h1>
+      <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Teams</h1>
       <p className="mt-1 text-sm text-ibc-ink/60">
-        Les squads du club (ex. IBBC Men (2LCM)). Chaque joueur, coach, séance, tactique et
-        tableau d&apos;entraînement est rattaché à l&apos;une d&apos;elles — le super-admin voit
-        tout, coachs et joueurs ne voient que leur propre équipe.
+        The club&apos;s squads (e.g. IBBC Men (2LCM)). Every player, coach, practice, tactic and
+        practice board is attached to one of them — the super-admin sees everything, coaches and
+        players only see their own team. Use the ↑ / ↓ buttons to change the order teams appear in
+        across the site.
       </p>
 
       <form
@@ -61,45 +87,48 @@ export default function TeamsAdminPage() {
         className="mt-6 grid grid-cols-2 gap-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm"
       >
         <input
-          placeholder="Nom (ex. IBBC Men (2LCM))"
+          placeholder="Name (e.g. IBBC Men (2LCM))"
           required
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           className="input"
         />
         <input
-          placeholder="Catégorie (ex. Hommes 1 — 2ème Ligue)"
+          placeholder="Category (e.g. Men 1 — 2nd Cantonal League)"
           value={form.category}
           onChange={(e) => setForm({ ...form, category: e.target.value })}
           className="input"
         />
         <input
-          placeholder="Lieu d'entraînement (ex. École Raymond-Uldry)"
+          placeholder="Practice location (e.g. École Raymond-Uldry)"
           value={form.practice_location_name}
           onChange={(e) => setForm({ ...form, practice_location_name: e.target.value })}
           className="input"
         />
         <input
-          placeholder="Adresse du lieu d'entraînement"
+          placeholder="Practice location address"
           value={form.practice_location_address}
           onChange={(e) => setForm({ ...form, practice_location_address: e.target.value })}
           className="input"
         />
         {error && <p className="col-span-2 text-sm text-red-600">{error}</p>}
         <button className="col-span-2 rounded-full bg-ibc-blue py-2 text-sm font-bold uppercase text-white hover:brightness-110">
-          + Ajouter une équipe
+          + Add a team
         </button>
       </form>
 
       <ul className="mt-6 space-y-2">
-        {teams.map((t) => (
+        {teams.map((t, i) => (
           <TeamRow
             key={t.id}
             team={t}
+            index={i}
+            count={teams.length}
             open={openId === t.id}
             onToggle={() => setOpenId(openId === t.id ? null : t.id)}
             onSave={(patch) => update(t.id, patch)}
             onDelete={() => remove(t.id)}
+            onMove={(dir) => move(i, dir)}
           />
         ))}
       </ul>
@@ -116,51 +145,73 @@ export default function TeamsAdminPage() {
   );
 }
 
-function TeamRow({ team, open, onToggle, onSave, onDelete }) {
+function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove }) {
   const [form, setForm] = useState(team);
 
   useEffect(() => setForm(team), [team]);
 
   return (
     <li className="rounded-xl border border-black/5 bg-white shadow-sm">
-      <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-4 text-left">
-        <div>
-          <p className="text-sm font-semibold text-ibc-ink">{team.name}</p>
-          {team.category && <p className="text-xs text-ibc-ink/50">{team.category}</p>}
-          {team.practice_location_name && (
-            <p className="text-xs text-ibc-ink/40">
-              {team.practice_location_name}
-              {team.practice_location_address ? ` — ${team.practice_location_address}` : ""}
-            </p>
-          )}
+      <div className="flex items-center gap-2 p-4">
+        <div className="flex shrink-0 flex-col">
+          <button
+            type="button"
+            onClick={() => onMove(-1)}
+            disabled={index === 0}
+            title="Move up"
+            className="rounded px-1.5 py-0.5 text-xs font-bold text-ibc-blue hover:bg-ibc-blue/10 disabled:opacity-20"
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            onClick={() => onMove(1)}
+            disabled={index === count - 1}
+            title="Move down"
+            className="rounded px-1.5 py-0.5 text-xs font-bold text-ibc-blue hover:bg-ibc-blue/10 disabled:opacity-20"
+          >
+            ▼
+          </button>
         </div>
-        <span className="shrink-0 text-xs font-bold uppercase text-ibc-blue">
-          {open ? "fermer" : "modifier"}
-        </span>
-      </button>
+        <button onClick={onToggle} className="flex flex-1 items-center justify-between gap-3 text-left">
+          <div>
+            <p className="text-sm font-semibold text-ibc-ink">{team.name}</p>
+            {team.category && <p className="text-xs text-ibc-ink/50">{team.category}</p>}
+            {team.practice_location_name && (
+              <p className="text-xs text-ibc-ink/40">
+                {team.practice_location_name}
+                {team.practice_location_address ? ` — ${team.practice_location_address}` : ""}
+              </p>
+            )}
+          </div>
+          <span className="shrink-0 text-xs font-bold uppercase text-ibc-blue">
+            {open ? "close" : "edit"}
+          </span>
+        </button>
+      </div>
 
       {open && (
         <div className="grid grid-cols-2 gap-3 border-t border-black/5 p-4">
           <input
-            placeholder="Nom"
+            placeholder="Name"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Catégorie"
+            placeholder="Category"
             value={form.category || ""}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Lieu d'entraînement"
+            placeholder="Practice location"
             value={form.practice_location_name || ""}
             onChange={(e) => setForm({ ...form, practice_location_name: e.target.value })}
             className="input col-span-2"
           />
           <input
-            placeholder="Adresse du lieu d'entraînement"
+            placeholder="Practice location address"
             value={form.practice_location_address || ""}
             onChange={(e) => setForm({ ...form, practice_location_address: e.target.value })}
             className="input col-span-2"
@@ -170,13 +221,13 @@ function TeamRow({ team, open, onToggle, onSave, onDelete }) {
               onClick={() => onSave(form)}
               className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110"
             >
-              Enregistrer
+              Save
             </button>
             <button
               onClick={onDelete}
               className="rounded-full bg-red-50 px-5 py-2 text-sm font-bold uppercase text-red-600 hover:bg-red-100"
             >
-              Supprimer
+              Delete
             </button>
           </div>
         </div>

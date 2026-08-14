@@ -12,6 +12,7 @@ export const DICTIONARY = {
   "nav.members": { en: "Members", fr: "Membres" },
   "nav.calendar": { en: "Calendar", fr: "Calendrier" },
   "nav.club": { en: "The Club", fr: "Le Club" },
+  "nav.contact": { en: "Contact", fr: "Contact" },
   "nav.teamLogin": { en: "Team Login", fr: "Connexion" },
   "nav.login": { en: "Login", fr: "Connexion" },
 

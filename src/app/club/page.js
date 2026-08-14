@@ -59,7 +59,9 @@ export default function ClubPage() {
         for dates and opponent venues.
       </p>
 
-      <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">Contact</h2>
+      <h2 id="contact" className="mt-12 scroll-mt-24 font-display text-2xl font-bold uppercase text-ibc-blue">
+        Contact
+      </h2>
       <div className="mt-3 rounded-xl border border-black/5 bg-ibc-blue/5 p-5 text-sm leading-relaxed text-ibc-ink/80">
         <p className="font-display text-base font-bold uppercase text-ibc-blue">
           International Basketball Club Geneva

@@ -9,17 +9,26 @@ function todayIso() {
 export default function PlayerPresencesPage() {
   const [practices, setPractices] = useState([]);
   const [rsvps, setRsvps] = useState([]);
+  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
 
   function refresh() {
-    Promise.all([
-      fetch(`/api/practices?from=${todayIso()}`).then((r) => r.json()),
-      fetch("/api/rsvp").then((r) => r.json()),
-    ]).then(([p, r]) => {
-      setPractices(Array.isArray(p) ? p : []);
-      setRsvps(Array.isArray(r) ? r : []);
-      setLoading(false);
-    });
+    fetch("/api/auth/status")
+      .then((r) => r.json())
+      .then((status) => {
+        const teamQuery = status.team_id ? `&team_id=${status.team_id}` : "";
+        return Promise.all([
+          fetch(`/api/practices?from=${todayIso()}${teamQuery}`).then((r) => r.json()),
+          fetch("/api/rsvp").then((r) => r.json()),
+          fetch(`/api/rsvp/counts${status.team_id ? `?team_id=${status.team_id}` : ""}`).then((r) => r.json()),
+        ]);
+      })
+      .then(([p, r, c]) => {
+        setPractices(Array.isArray(p) ? p : []);
+        setRsvps(Array.isArray(r) ? r : []);
+        setCounts(c && typeof c === "object" ? c : {});
+        setLoading(false);
+      });
   }
 
   useEffect(refresh, []);
@@ -42,12 +51,12 @@ export default function PlayerPresencesPage() {
     <div className="max-w-2xl">
       <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Présences</h1>
       <p className="mt-1 text-sm text-ibc-ink/60">
-        Marquez si vous serez présent à chaque entraînement ou match à venir — le coach voit
-        l&apos;effectif attendu en temps réel.
+        Marquez « Présent » ou « Absent » pour chaque entraînement ou match à venir de votre
+        équipe — le compte se met à jour en temps réel pour vous et pour le coach.
       </p>
       {!loading && (
         <p className="mt-3 inline-block rounded-full bg-ibc-blue/10 px-4 py-1.5 text-xs font-bold uppercase text-ibc-blue">
-          {attendedCount} présence{attendedCount === 1 ? "" : "s"} enregistrée{attendedCount === 1 ? "" : "s"} au total
+          Mon total : {attendedCount} présence{attendedCount === 1 ? "" : "s"} enregistrée{attendedCount === 1 ? "" : "s"}
         </p>
       )}
 
@@ -58,6 +67,7 @@ export default function PlayerPresencesPage() {
       <ul className="mt-6 space-y-2">
         {practices.map((p) => {
           const status = byPractice[p.id];
+          const c = counts[p.id] || { in: 0, out: 0 };
           return (
             <li
               key={p.id}
@@ -71,6 +81,11 @@ export default function PlayerPresencesPage() {
                   </span>
                 </p>
                 {p.location_name && <p className="mt-1 text-xs text-ibc-ink/50">{p.location_name}</p>}
+                <p className="mt-1 text-xs font-semibold">
+                  <span className="text-green-600">{c.in} présent{c.in === 1 ? "" : "s"}</span>
+                  {" · "}
+                  <span className="text-red-500">{c.out} absent{c.out === 1 ? "" : "s"}</span>
+                </p>
               </div>
               <div className="flex shrink-0 gap-2">
                 <button

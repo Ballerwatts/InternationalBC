@@ -10,7 +10,7 @@ export async function GET() {
 
   const settings = getAllSettings();
   const players = query(
-    "SELECT id, first_name, last_name, jersey_number, active, custom_due_amount FROM players ORDER BY sort_order ASC, last_name ASC"
+    "SELECT id, first_name, last_name, jersey_number, active, custom_due_amount, team_id FROM players ORDER BY sort_order ASC, last_name ASC"
   );
   const paidRows = query(
     `SELECT player_id, category, SUM(amount) as total FROM payments WHERE season = ? GROUP BY player_id, category`,
@@ -49,5 +49,20 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ due, totalDue: defaultTotalDue, players: rows });
+  const licenseTotals = rows.reduce(
+    (acc, p) => {
+      const amount = p.paid.license || 0;
+      if (p.licensePaid) {
+        acc.paidCount += 1;
+        acc.paidAmount += amount;
+      } else {
+        acc.unpaidCount += 1;
+        acc.unpaidAmount += due.license;
+      }
+      return acc;
+    },
+    { paidCount: 0, paidAmount: 0, unpaidCount: 0, unpaidAmount: 0 }
+  );
+
+  return NextResponse.json({ due, totalDue: defaultTotalDue, players: rows, licenseTotals });
 }

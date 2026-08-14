@@ -15,8 +15,17 @@ export default function TeamNav({ isAdmin }) {
   const router = useRouter();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // even if the network call fails, still force the user back to the
+      // login screen — a stuck "logout does nothing" is worse than a
+      // best-effort cookie clear.
+    }
+    // Full page navigation (not the client router) so every bit of
+    // client-side state — including anything cached from the previous
+    // session — is thrown away, not just the visible route.
+    window.location.href = "/login";
   }
 
   return (

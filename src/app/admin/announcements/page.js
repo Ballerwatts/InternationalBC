@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { resizeImageToDataUrl } from "@/lib/image-client";
+import ImageDropzone from "@/components/ImageDropzone";
 
 const EMPTY = { title: "", body: "", published: 1, image_data_url: "" };
 
@@ -52,12 +52,6 @@ export default function AnnouncementsAdminPage() {
     });
   }
 
-  async function handleImage(file) {
-    if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 1400, 0.85, { keepPng: true });
-    setForm((f) => ({ ...f, image_data_url: dataUrl }));
-  }
-
   return (
     <div className="max-w-3xl">
       <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Annonces</h1>
@@ -80,28 +74,14 @@ export default function AnnouncementsAdminPage() {
         />
         <div>
           <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
-            Image (optionnelle)
+            Image (optionnelle, petit format)
           </label>
-          <div className="flex items-center gap-3">
-            {form.image_data_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={form.image_data_url}
-                alt=""
-                className="h-16 w-24 rounded object-cover"
-              />
-            )}
-            <input type="file" accept="image/*" onChange={(e) => handleImage(e.target.files?.[0])} />
-            {form.image_data_url && (
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, image_data_url: "" }))}
-                className="text-xs font-bold uppercase text-red-500 hover:underline"
-              >
-                Retirer
-              </button>
-            )}
-          </div>
+          <ImageDropzone
+            value={form.image_data_url}
+            onChange={(dataUrl) => setForm((f) => ({ ...f, image_data_url: dataUrl }))}
+            maxWidth={1400}
+            size={110}
+          />
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input

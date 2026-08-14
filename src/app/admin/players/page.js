@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { resizeImageToDataUrl } from "@/lib/image-client";
+import { useEffect, useMemo, useState } from "react";
+import ImageDropzone from "@/components/ImageDropzone";
 
 const EMPTY = {
   first_name: "",
@@ -24,13 +24,25 @@ const EMPTY = {
 export default function PlayersAdminPage() {
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [licenseByPlayer, setLicenseByPlayer] = useState({});
   const [openId, setOpenId] = useState(null);
   const [creating, setCreating] = useState(false);
   const [newPlayer, setNewPlayer] = useState(EMPTY);
 
+  const [search, setSearch] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [licenseFilter, setLicenseFilter] = useState("");
+
   function refresh() {
     fetch("/api/players").then((r) => r.json()).then(setPlayers);
     fetch("/api/admin/teams").then((r) => r.json()).then(setTeams);
+    fetch("/api/budget/summary")
+      .then((r) => r.json())
+      .then((s) => {
+        const map = {};
+        for (const p of s.players || []) map[p.id] = p.licensePaid;
+        setLicenseByPlayer(map);
+      });
   }
 
   useEffect(refresh, []);
@@ -48,30 +60,71 @@ export default function PlayersAdminPage() {
   }
 
   async function updatePlayer(id, patch) {
-    await fetch(`/api/players/${id}`, {
+    const res = await fetch(`/api/players/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
     refresh();
+    return res.ok;
   }
 
   async function deletePlayer(id) {
-    if (!confirm("Supprimer ce joueur ?")) return;
+    if (!confirm("Delete this player?")) return;
     await fetch(`/api/players/${id}`, { method: "DELETE" });
     refresh();
   }
 
+  const filteredPlayers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return players.filter((p) => {
+      if (q) {
+        const haystack = `${p.first_name} ${p.last_name} ${p.email || ""} ${p.license_number || ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (teamFilter && String(p.team_id || "") !== teamFilter) return false;
+      if (licenseFilter) {
+        const paid = !!licenseByPlayer[p.id];
+        if (licenseFilter === "paid" && !paid) return false;
+        if (licenseFilter === "unpaid" && paid) return false;
+      }
+      return true;
+    });
+  }, [players, search, teamFilter, licenseFilter, licenseByPlayer]);
+
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Joueurs</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Members</h1>
         <button
           onClick={() => setCreating((c) => !c)}
           className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110"
         >
-          {creating ? "Annuler" : "+ Ajouter un joueur"}
+          {creating ? "Cancel" : "+ Add a member"}
         </button>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          placeholder="🔍 Search by name, email, or license #…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="input min-w-[220px] flex-1"
+        />
+        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} className="input">
+          <option value="">All teams</option>
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <select value={licenseFilter} onChange={(e) => setLicenseFilter(e.target.value)} className="input">
+          <option value="">Any license status</option>
+          <option value="paid">License paid</option>
+          <option value="unpaid">License unpaid</option>
+        </select>
       </div>
 
       {creating && (
@@ -80,27 +133,27 @@ export default function PlayersAdminPage() {
           className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm"
         >
           <input
-            placeholder="Prénom"
+            placeholder="First name"
             required
             value={newPlayer.first_name}
             onChange={(e) => setNewPlayer({ ...newPlayer, first_name: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Nom"
+            placeholder="Last name"
             required
             value={newPlayer.last_name}
             onChange={(e) => setNewPlayer({ ...newPlayer, last_name: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Numéro de maillot"
+            placeholder="Jersey number"
             value={newPlayer.jersey_number}
             onChange={(e) => setNewPlayer({ ...newPlayer, jersey_number: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Numéro de licence"
+            placeholder="License number"
             value={newPlayer.license_number}
             onChange={(e) => setNewPlayer({ ...newPlayer, license_number: e.target.value })}
             className="input"
@@ -113,13 +166,13 @@ export default function PlayersAdminPage() {
             className="input"
           />
           <input
-            placeholder="Téléphone"
+            placeholder="Phone"
             value={newPlayer.phone}
             onChange={(e) => setNewPlayer({ ...newPlayer, phone: e.target.value })}
             className="input"
           />
           <input
-            placeholder="Nationalité"
+            placeholder="Nationality"
             value={newPlayer.nationality}
             onChange={(e) => setNewPlayer({ ...newPlayer, nationality: e.target.value })}
             className="input"
@@ -129,7 +182,7 @@ export default function PlayersAdminPage() {
             onChange={(e) => setNewPlayer({ ...newPlayer, team_id: e.target.value ? Number(e.target.value) : "" })}
             className="input col-span-2"
           >
-            <option value="">Aucune équipe</option>
+            <option value="">No team</option>
             {teams.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
@@ -137,13 +190,17 @@ export default function PlayersAdminPage() {
             ))}
           </select>
           <button className="col-span-2 rounded-full bg-ibc-accent py-2 text-sm font-bold uppercase text-ibc-ink hover:brightness-95">
-            Créer le profil
+            Create profile
           </button>
         </form>
       )}
 
-      <ul className="mt-6 space-y-3">
-        {players.map((p) => (
+      <p className="mt-4 text-xs font-semibold uppercase text-ibc-ink/40">
+        {filteredPlayers.length} member{filteredPlayers.length === 1 ? "" : "s"}
+      </p>
+
+      <ul className="mt-2 space-y-3">
+        {filteredPlayers.map((p) => (
           <PlayerRow
             key={p.id}
             player={p}
@@ -154,6 +211,9 @@ export default function PlayersAdminPage() {
             onDelete={() => deletePlayer(p.id)}
           />
         ))}
+        {filteredPlayers.length === 0 && (
+          <p className="text-sm text-ibc-ink/50">No members match your search/filters.</p>
+        )}
       </ul>
 
       <style jsx global>{`
@@ -170,13 +230,15 @@ export default function PlayersAdminPage() {
 
 function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
   const [form, setForm] = useState(player);
+  const [saveState, setSaveState] = useState(null); // "ok" | "error" | null
 
   useEffect(() => setForm(player), [player]);
 
-  async function handlePhoto(file) {
-    if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 800);
-    setForm((f) => ({ ...f, photo_data_url: dataUrl }));
+  async function handleSave() {
+    setSaveState(null);
+    const ok = await onSave(form);
+    setSaveState(ok ? "ok" : "error");
+    setTimeout(() => setSaveState(null), 2500);
   }
 
   return (
@@ -198,41 +260,47 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
               <span className="text-ibc-blue">#{player.jersey_number}</span>
             )}
             {!player.active && (
-              <span className="ml-2 rounded bg-black/10 px-2 py-0.5 text-xs">inactif</span>
+              <span className="ml-2 rounded bg-black/10 px-2 py-0.5 text-xs">inactive</span>
             )}
           </p>
           <p className="text-xs text-ibc-ink/50">
-            {player.email || "email manquant"} · {player.phone || "téléphone manquant"} · licence{" "}
+            {player.email || "no email"} · {player.phone || "no phone"} · license{" "}
             {player.license_number || "—"}
           </p>
         </div>
         <span className="text-xs font-bold uppercase text-ibc-blue">
-          {open ? "fermer" : "modifier"}
+          {open ? "close" : "edit"}
         </span>
       </button>
 
       {open && (
         <div className="grid grid-cols-2 gap-3 border-t border-black/5 p-4">
-          <label className="col-span-2 text-xs font-bold uppercase text-ibc-blue">Photo</label>
-          <div className="col-span-2 flex items-center gap-3">
-            <input type="file" accept="image/*" onChange={(e) => handlePhoto(e.target.files?.[0])} />
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue">Photo</label>
+            <ImageDropzone
+              value={form.photo_data_url}
+              onChange={(dataUrl) => setForm((f) => ({ ...f, photo_data_url: dataUrl }))}
+              maxWidth={800}
+              size={96}
+              shape="circle"
+            />
           </div>
-          <LabeledInput label="Prénom" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
-          <LabeledInput label="Nom" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
-          <LabeledInput label="Numéro de maillot" value={form.jersey_number || ""} onChange={(v) => setForm({ ...form, jersey_number: v })} />
-          <LabeledInput label="Numéro de licence" value={form.license_number || ""} onChange={(v) => setForm({ ...form, license_number: v })} />
+          <LabeledInput label="First name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} />
+          <LabeledInput label="Last name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} />
+          <LabeledInput label="Jersey number" value={form.jersey_number || ""} onChange={(v) => setForm({ ...form, jersey_number: v })} />
+          <LabeledInput label="License number" value={form.license_number || ""} onChange={(v) => setForm({ ...form, license_number: v })} />
           <LabeledInput label="Email" value={form.email || ""} onChange={(v) => setForm({ ...form, email: v })} />
-          <LabeledInput label="Téléphone" value={form.phone || ""} onChange={(v) => setForm({ ...form, phone: v })} />
-          <LabeledInput label="Poste" value={form.position || ""} onChange={(v) => setForm({ ...form, position: v })} />
-          <LabeledInput label="Nationalité" value={form.nationality || ""} onChange={(v) => setForm({ ...form, nationality: v })} />
+          <LabeledInput label="Phone" value={form.phone || ""} onChange={(v) => setForm({ ...form, phone: v })} />
+          <LabeledInput label="Position" value={form.position || ""} onChange={(v) => setForm({ ...form, position: v })} />
+          <LabeledInput label="Nationality" value={form.nationality || ""} onChange={(v) => setForm({ ...form, nationality: v })} />
           <div>
-            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Équipe</label>
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Team</label>
             <select
               value={form.team_id || ""}
               onChange={(e) => setForm({ ...form, team_id: e.target.value ? Number(e.target.value) : null })}
               className="input w-full"
             >
-              <option value="">Aucune équipe</option>
+              <option value="">No team</option>
               {(teams || []).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -241,19 +309,19 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
             </select>
           </div>
           <LabeledInput
-            label="Matchs joués"
+            label="Games played"
             type="number"
             value={form.games_played}
             onChange={(v) => setForm({ ...form, games_played: Number(v) })}
           />
           <LabeledInput
-            label="Points totaux"
+            label="Total points"
             type="number"
             value={form.total_points}
             onChange={(v) => setForm({ ...form, total_points: Number(v) })}
           />
           <LabeledInput
-            label="Points par match"
+            label="Points per game"
             type="number"
             step="0.1"
             value={form.ppg}
@@ -261,7 +329,7 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
           />
           <div className="col-span-2">
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
-              Bio / stats (visible sur le profil public)
+              Bio / stats (visible on the public profile)
             </label>
             <textarea
               value={form.bio || ""}
@@ -276,21 +344,31 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
               checked={!!form.active}
               onChange={(e) => setForm({ ...form, active: e.target.checked ? 1 : 0 })}
             />
-            Joueur actif (visible sur le site)
+            Active player (visible on the site)
           </label>
-          <div className="col-span-2 flex gap-2">
+          <div className="col-span-2 flex items-center gap-3">
             <button
-              onClick={() => onSave(form)}
+              onClick={handleSave}
               className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110"
             >
-              Enregistrer
+              Save
             </button>
             <button
               onClick={onDelete}
               className="rounded-full bg-red-50 px-5 py-2 text-sm font-bold uppercase text-red-600 hover:bg-red-100"
             >
-              Supprimer le joueur
+              Delete member
             </button>
+            {saveState === "ok" && (
+              <span className="text-lg font-bold text-green-600" title="Saved">
+                ✓
+              </span>
+            )}
+            {saveState === "error" && (
+              <span className="text-lg font-bold text-red-600" title="Save failed">
+                ✗
+              </span>
+            )}
           </div>
         </div>
       )}
