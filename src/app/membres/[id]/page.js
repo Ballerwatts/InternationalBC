@@ -22,11 +22,15 @@ export default async function MemberProfilePage({ params }) {
   );
   if (!player) notFound();
 
-  const linkedUser = get("SELECT role FROM users WHERE player_id = ?", [player.id]);
+  const linkedUser = get("SELECT id, role FROM users WHERE player_id = ?", [player.id]);
   const session = await getSession();
   // Contact info (email/phone) is only shown to logged-in members (staff or
   // players) — never on the public page.
   const canSeeContact = !!session;
+
+  const attendedCount = linkedUser
+    ? get("SELECT COUNT(*) as c FROM practice_rsvp WHERE user_id = ? AND status = 'in'", [linkedUser.id])?.c || 0
+    : null;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
@@ -77,16 +81,22 @@ export default async function MemberProfilePage({ params }) {
                 {player.position}
               </span>
             )}
+            {player.nationality && (
+              <span className="rounded-full bg-black/5 px-3 py-1 text-xs font-semibold uppercase text-ibc-ink/70">
+                {player.nationality}
+              </span>
+            )}
           </div>
 
           {player.team_category && (
             <p className="mt-2 text-sm text-ibc-ink/60">{player.team_category}</p>
           )}
 
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className={`mt-4 grid gap-3 ${attendedCount !== null ? "grid-cols-4" : "grid-cols-3"}`}>
             <Stat label="Games" value={player.games_played} />
             <Stat label="Points" value={player.total_points} />
             <Stat label="Pts/game" value={player.ppg} />
+            {attendedCount !== null && <Stat label="Attended" value={attendedCount} />}
           </div>
 
           {player.bio && (

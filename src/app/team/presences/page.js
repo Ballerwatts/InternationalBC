@@ -36,6 +36,8 @@ export default function PlayerPresencesPage() {
   const byPractice = {};
   for (const r of rsvps) byPractice[r.practice_id] = r.status;
 
+  const attendedCount = rsvps.filter((r) => r.status === "in").length;
+
   return (
     <div className="max-w-2xl">
       <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Présences</h1>
@@ -43,6 +45,11 @@ export default function PlayerPresencesPage() {
         Marquez si vous serez présent à chaque entraînement ou match à venir — le coach voit
         l&apos;effectif attendu en temps réel.
       </p>
+      {!loading && (
+        <p className="mt-3 inline-block rounded-full bg-ibc-blue/10 px-4 py-1.5 text-xs font-bold uppercase text-ibc-blue">
+          {attendedCount} présence{attendedCount === 1 ? "" : "s"} enregistrée{attendedCount === 1 ? "" : "s"} au total
+        </p>
+      )}
 
       {!loading && practices.length === 0 && (
         <p className="mt-6 text-sm text-ibc-ink/50">Aucun entraînement ou match programmé pour le moment.</p>

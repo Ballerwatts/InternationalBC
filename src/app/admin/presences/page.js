@@ -39,6 +39,20 @@ export default function AdminPresencesPage() {
     });
   }, [practices, rsvps, players]);
 
+  // Running tally per player across every practice/game they've responded
+  // to (not just the upcoming ones above) — the /api/rsvp admin view
+  // already returns every RSVP row, so this is a simple client-side count.
+  const tally = useMemo(() => {
+    const counts = {};
+    for (const r of rsvps) {
+      counts[r.user_name] = counts[r.user_name] || { in: 0, out: 0 };
+      counts[r.user_name][r.status] += 1;
+    }
+    return Object.entries(counts)
+      .map(([name, c]) => ({ name, ...c, total: c.in + c.out }))
+      .sort((a, b) => b.in - a.in);
+  }, [rsvps]);
+
   return (
     <div className="max-w-4xl">
       <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Présences</h1>
@@ -46,6 +60,34 @@ export default function AdminPresencesPage() {
         Le marquage individuel « présent / absent » de chaque joueur pour les prochaines séances
         (distinct des déclarations de voyage/absence longue durée, voir « Disponibilités »).
       </p>
+
+      {!loading && tally.length > 0 && (
+        <div className="mt-6 overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm">
+          <p className="border-b border-black/5 px-4 py-2 text-xs font-bold uppercase tracking-wide text-ibc-blue">
+            Cumul de présences par joueur
+          </p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-black/5 text-left text-xs uppercase text-ibc-ink/50">
+                <th className="px-4 py-2">Joueur</th>
+                <th className="px-4 py-2">Présent</th>
+                <th className="px-4 py-2">Absent</th>
+                <th className="px-4 py-2">Réponses</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tally.map((t) => (
+                <tr key={t.name} className="border-b border-black/5 last:border-0">
+                  <td className="px-4 py-2 font-semibold">{t.name}</td>
+                  <td className="px-4 py-2 text-green-700">{t.in}</td>
+                  <td className="px-4 py-2 text-red-600">{t.out}</td>
+                  <td className="px-4 py-2 text-ibc-ink/60">{t.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {!loading && (
         <div className="mt-6 space-y-4">
