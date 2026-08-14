@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resizeImageToDataUrl } from "@/lib/image-client";
 
-const EMPTY = { title: "", body: "", published: 1 };
+const EMPTY = { title: "", body: "", published: 1, image_data_url: "" };
 
 export default function AnnouncementsAdminPage() {
   const [items, setItems] = useState([]);
@@ -43,7 +44,18 @@ export default function AnnouncementsAdminPage() {
 
   function edit(item) {
     setEditingId(item.id);
-    setForm({ title: item.title, body: item.body, published: item.published });
+    setForm({
+      title: item.title,
+      body: item.body,
+      published: item.published,
+      image_data_url: item.image_data_url || "",
+    });
+  }
+
+  async function handleImage(file) {
+    if (!file) return;
+    const dataUrl = await resizeImageToDataUrl(file, 1400, 0.85, { keepPng: true });
+    setForm((f) => ({ ...f, image_data_url: dataUrl }));
   }
 
   return (
@@ -66,6 +78,31 @@ export default function AnnouncementsAdminPage() {
           className="w-full rounded-md border border-black/10 px-3 py-2"
           required
         />
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+            Image (optionnelle)
+          </label>
+          <div className="flex items-center gap-3">
+            {form.image_data_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={form.image_data_url}
+                alt=""
+                className="h-16 w-24 rounded object-cover"
+              />
+            )}
+            <input type="file" accept="image/*" onChange={(e) => handleImage(e.target.files?.[0])} />
+            {form.image_data_url && (
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, image_data_url: "" }))}
+                className="text-xs font-bold uppercase text-red-500 hover:underline"
+              >
+                Retirer
+              </button>
+            )}
+          </div>
+        </div>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -97,16 +134,26 @@ export default function AnnouncementsAdminPage() {
         {items.map((a) => (
           <li key={a.id} className="rounded-xl border border-black/5 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-display text-lg font-bold text-ibc-ink">
-                  {a.title}{" "}
-                  {!a.published && (
-                    <span className="ml-1 rounded bg-black/10 px-2 py-0.5 text-xs font-semibold text-ibc-ink/60">
-                      brouillon
-                    </span>
-                  )}
-                </p>
-                <p className="mt-1 whitespace-pre-line text-sm text-ibc-ink/70">{a.body}</p>
+              <div className="flex gap-3">
+                {a.image_data_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={a.image_data_url}
+                    alt=""
+                    className="h-16 w-24 shrink-0 rounded object-cover"
+                  />
+                )}
+                <div>
+                  <p className="font-display text-lg font-bold text-ibc-ink">
+                    {a.title}{" "}
+                    {!a.published && (
+                      <span className="ml-1 rounded bg-black/10 px-2 py-0.5 text-xs font-semibold text-ibc-ink/60">
+                        brouillon
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-ibc-ink/70">{a.body}</p>
+                </div>
               </div>
               <div className="flex shrink-0 gap-2 text-xs font-bold uppercase">
                 <button onClick={() => edit(a)} className="text-ibc-blue hover:underline">

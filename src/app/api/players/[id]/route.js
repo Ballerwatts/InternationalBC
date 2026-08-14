@@ -33,6 +33,7 @@ const FIELDS = [
   "team_id",
   "bio",
   "nationality",
+  "custom_due_amount",
 ];
 
 export async function PUT(request, { params }) {
@@ -45,7 +46,13 @@ export async function PUT(request, { params }) {
   for (const f of FIELDS) {
     if (f in body) {
       sets.push(`${f} = ?`);
-      values.push(f === "active" ? (body[f] ? 1 : 0) : body[f]);
+      if (f === "active") {
+        values.push(body[f] ? 1 : 0);
+      } else if (f === "custom_due_amount") {
+        values.push(body[f] === "" || body[f] === null || body[f] === undefined ? null : Number(body[f]));
+      } else {
+        values.push(body[f]);
+      }
     }
   }
   if (sets.length === 0) return NextResponse.json({ ok: true });

@@ -94,6 +94,36 @@ export default function HeroAdminPage() {
         />
       </Field>
 
+      <div className="rounded-xl border border-black/5 bg-ibc-accent/5 p-4">
+        <h2 className="mb-3 font-display text-lg font-bold uppercase text-ibc-blue">
+          Highlight of the week
+        </h2>
+        <Field label="Titre (affiché en gras, 1 ligne)">
+          <input
+            className="input"
+            value={settings.highlight_title || ""}
+            onChange={(e) => setSettings({ ...settings, highlight_title: e.target.value })}
+          />
+        </Field>
+        <div className="mt-3">
+          <Field label="Description (3 lignes environ)">
+            <textarea
+              className="input"
+              rows={3}
+              value={settings.highlight_body || ""}
+              onChange={(e) => setSettings({ ...settings, highlight_body: e.target.value })}
+            />
+          </Field>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-black/5 bg-ibc-accent/5 p-4">
+        <h2 className="mb-3 font-display text-lg font-bold uppercase text-ibc-blue">
+          Photos supplémentaires du slider (jusqu&apos;à 3)
+        </h2>
+        <HeroPhotosEditor />
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           disabled={saving}
@@ -122,6 +152,82 @@ function Field({ label, children }) {
     <div>
       <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue">{label}</label>
       {children}
+    </div>
+  );
+}
+
+const MAX_HERO_PHOTOS = 3;
+
+function HeroPhotosEditor() {
+  const [photos, setPhotos] = useState([]);
+  const [uploading, setUploading] = useState(false);
+
+  function refresh() {
+    fetch("/api/hero-photos").then((r) => r.json()).then(setPhotos);
+  }
+
+  useEffect(refresh, []);
+
+  async function handleUpload(file) {
+    if (!file) return;
+    if (photos.length >= MAX_HERO_PHOTOS) {
+      alert(`Maximum ${MAX_HERO_PHOTOS} photos supplémentaires.`);
+      return;
+    }
+    setUploading(true);
+    const dataUrl = await resizeImageToDataUrl(file, 1600, 0.85, { keepPng: true });
+    await fetch("/api/hero-photos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image_data_url: dataUrl }),
+    });
+    setUploading(false);
+    refresh();
+  }
+
+  async function remove(id) {
+    if (!confirm("Supprimer cette photo ?")) return;
+    await fetch(`/api/hero-photos/${id}`, { method: "DELETE" });
+    refresh();
+  }
+
+  return (
+    <div>
+      <p className="mb-3 text-xs text-ibc-ink/60">
+        Ces photos s&apos;ajoutent au diaporama de la page d&apos;accueil (en plus du titre, de la
+        dernière annonce et des sponsors).
+      </p>
+      <div className="flex flex-wrap gap-3">
+        {photos.map((p) => (
+          <div key={p.id} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={p.image_data_url}
+              alt=""
+              className="h-24 w-36 rounded-lg border border-black/10 object-cover"
+            />
+            <button
+              type="button"
+              onClick={() => remove(p.id)}
+              className="absolute -right-2 -top-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white shadow"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      {photos.length < MAX_HERO_PHOTOS ? (
+        <div className="mt-3">
+          <input
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            onChange={(e) => handleUpload(e.target.files?.[0])}
+          />
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-ibc-ink/50">Nombre maximum de photos atteint.</p>
+      )}
     </div>
   );
 }

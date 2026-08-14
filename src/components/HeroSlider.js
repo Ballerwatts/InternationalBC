@@ -7,10 +7,11 @@ import { useEffect, useState } from "react";
 // Simple auto-rotating 3-slide hero: (1) club headline/team photo, (2) the
 // latest announcement (if any), (3) sponsors (if any). Falls back to just
 // the headline slide if there's no announcement/sponsor yet.
-export default function HeroSlider({ settings, announcement, sponsors }) {
+export default function HeroSlider({ settings, announcement, sponsors, heroPhotos = [] }) {
   const slides = ["hero"];
   if (announcement) slides.push("announcement");
   if (sponsors && sponsors.length > 0) slides.push("sponsors");
+  heroPhotos.forEach((p) => slides.push({ type: "photo", photo: p }));
 
   const [index, setIndex] = useState(0);
 
@@ -21,6 +22,7 @@ export default function HeroSlider({ settings, announcement, sponsors }) {
   }, [slides.length]);
 
   const current = slides[index] || "hero";
+  const currentType = typeof current === "string" ? current : current.type;
 
   return (
     <section className="bg-court relative overflow-hidden text-white">
@@ -29,16 +31,17 @@ export default function HeroSlider({ settings, announcement, sponsors }) {
       </div>
 
       <div className="relative mx-auto min-h-[420px] max-w-6xl px-4 py-16 md:min-h-[480px] md:py-24">
-        {current === "hero" && <HeroSlide settings={settings} />}
-        {current === "announcement" && announcement && <AnnouncementSlide announcement={announcement} />}
-        {current === "sponsors" && sponsors?.length > 0 && <SponsorsSlide sponsors={sponsors} />}
+        {currentType === "hero" && <HeroSlide settings={settings} />}
+        {currentType === "announcement" && announcement && <AnnouncementSlide announcement={announcement} />}
+        {currentType === "sponsors" && sponsors?.length > 0 && <SponsorsSlide sponsors={sponsors} />}
+        {currentType === "photo" && <PhotoSlide photo={current.photo} />}
       </div>
 
       {slides.length > 1 && (
         <div className="relative z-10 flex justify-center gap-2 pb-6">
           {slides.map((s, i) => (
             <button
-              key={s}
+              key={typeof s === "string" ? s : `photo-${s.photo.id}`}
               onClick={() => setIndex(i)}
               aria-label={`Slide ${i + 1}`}
               className={`h-2 rounded-full transition-all ${
@@ -103,6 +106,14 @@ function AnnouncementSlide({ announcement }) {
       <p className="mb-3 inline-block rounded-full bg-ibc-accent px-4 py-1 text-xs font-bold uppercase tracking-[0.2em] text-ibc-ink">
         Latest announcement
       </p>
+      {announcement.image_data_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={announcement.image_data_url}
+          alt=""
+          className="mb-4 max-h-40 w-auto rounded-lg border-2 border-white/30 object-cover"
+        />
+      )}
       <h1 className="font-display text-3xl font-extrabold uppercase leading-tight sm:text-4xl">
         {announcement.title}
       </h1>
@@ -119,19 +130,43 @@ function SponsorsSlide({ sponsors }) {
       <p className="mb-3 inline-block rounded-full bg-ibc-accent px-4 py-1 text-xs font-bold uppercase tracking-[0.2em] text-ibc-ink">
         With thanks to our sponsors
       </p>
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-8">
-        {sponsors.map((s) => (
-          <div key={s.id} className="flex flex-col items-center gap-2">
-            {s.logo_data_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={s.logo_data_url} alt={s.name} className="h-16 w-auto rounded bg-white/90 object-contain p-2" />
-            ) : (
-              <span className="font-display text-xl font-bold">{s.name}</span>
-            )}
-            <span className="text-xs text-white/70">{s.name}</span>
-          </div>
-        ))}
+      <div className="mt-6 flex flex-wrap items-end justify-center gap-8">
+        {sponsors.map((s) => {
+          const isMain = s.tier === "main";
+          return (
+            <div key={s.id} className="flex flex-col items-center gap-2">
+              {s.logo_data_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={s.logo_data_url}
+                  alt={s.name}
+                  className={
+                    isMain
+                      ? "h-24 w-auto rounded bg-white/90 object-contain p-2"
+                      : "h-8 w-auto rounded bg-white/90 object-contain p-1"
+                  }
+                />
+              ) : (
+                <span className={`font-display font-bold ${isMain ? "text-xl" : "text-sm"}`}>{s.name}</span>
+              )}
+              <span className="text-xs text-white/70">{s.name}</span>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function PhotoSlide({ photo }) {
+  return (
+    <div className="mx-auto flex h-full max-w-4xl items-center justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={photo.image_data_url}
+        alt=""
+        className="max-h-[340px] w-full rounded-2xl border-4 border-ibc-accent object-cover shadow-2xl md:max-h-[400px]"
+      />
     </div>
   );
 }

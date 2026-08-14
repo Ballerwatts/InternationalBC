@@ -24,17 +24,20 @@ export default function HomePage() {
     "SELECT * FROM announcements WHERE published = 1 ORDER BY created_at DESC LIMIT 3"
   );
   const upcoming = nextPractices(4);
-  const topPlayers = query(
-    "SELECT * FROM players WHERE active = 1 ORDER BY total_points DESC LIMIT 3"
-  );
   const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC");
+  const heroPhotos = query("SELECT * FROM hero_photos ORDER BY sort_order ASC, id ASC");
 
   const latestAnnouncement = announcements[0] || null;
 
   return (
     <div>
-      {/* HERO SLIDER — 3 slides: club headline, latest announcement, sponsors */}
-      <HeroSlider settings={settings} announcement={latestAnnouncement} sponsors={sponsors} />
+      {/* HERO SLIDER — club headline, latest announcement, sponsors, + up to 3 extra photos */}
+      <HeroSlider
+        settings={settings}
+        announcement={latestAnnouncement}
+        sponsors={sponsors}
+        heroPhotos={heroPhotos}
+      />
 
       {/* QUICK FACTS */}
       <section className="border-b border-black/5 bg-ibc-accent/10">
@@ -54,13 +57,19 @@ export default function HomePage() {
             {announcements.map((a) => (
               <article
                 key={a.id}
-                className="rounded-xl border border-black/5 bg-white p-5 shadow-sm ring-1 ring-black/5"
+                className="overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm ring-1 ring-black/5"
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-ibc-blue/70">
-                  {new Date(a.created_at).toLocaleDateString("en-GB")}
-                </p>
-                <h3 className="mt-1 font-display text-xl font-bold text-ibc-ink">{a.title}</h3>
-                <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/75">{a.body}</p>
+                {a.image_data_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.image_data_url} alt="" className="h-40 w-full object-cover" />
+                )}
+                <div className="p-5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ibc-blue/70">
+                    {new Date(a.created_at).toLocaleDateString("en-GB")}
+                  </p>
+                  <h3 className="mt-1 font-display text-xl font-bold text-ibc-ink">{a.title}</h3>
+                  <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/75">{a.body}</p>
+                </div>
               </article>
             ))}
           </div>
@@ -134,25 +143,19 @@ export default function HomePage() {
             <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">The Club</h2>
             <p className="mt-4 whitespace-pre-line text-ibc-ink/75">{settings.club_about}</p>
           </div>
-          {topPlayers.length > 0 && (
+          {settings.highlight_body && (
             <div>
               <h3 className="font-display text-xl font-bold uppercase text-ibc-blue">
-                Top scorers
+                Highlight of the week
               </h3>
-              <ul className="mt-4 space-y-2">
-                {topPlayers.map((p, i) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between rounded-lg bg-ibc-blue/5 px-4 py-2.5"
-                  >
-                    <span className="font-semibold text-ibc-ink">
-                      <span className="mr-2 text-ibc-accent-deep">#{i + 1}</span>
-                      {p.first_name} {p.last_name}
-                    </span>
-                    <span className="text-sm text-ibc-ink/60">{p.ppg} pts/game</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-4 rounded-xl bg-ibc-blue/5 px-5 py-4">
+                <p className="font-display text-lg font-extrabold text-ibc-ink">
+                  {settings.highlight_title}
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/75">
+                  {settings.highlight_body}
+                </p>
+              </div>
               <Link
                 href="/equipe"
                 className="mt-4 inline-block text-sm font-bold uppercase text-ibc-blue hover:underline"
@@ -171,25 +174,38 @@ export default function HomePage() {
             <h2 className="text-center font-display text-2xl font-bold uppercase text-ibc-blue">
               Our Sponsors
             </h2>
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-8">
-              {sponsors.map((s) => (
-                <a
-                  key={s.id}
-                  href={s.website_url || undefined}
-                  target={s.website_url ? "_blank" : undefined}
-                  rel={s.website_url ? "noopener noreferrer" : undefined}
-                  className="flex flex-col items-center gap-2 text-center"
-                  title={s.description || s.name}
-                >
-                  {s.logo_data_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={s.logo_data_url} alt={s.name} className="h-16 w-auto object-contain" />
-                  ) : (
-                    <span className="font-display text-lg font-bold text-ibc-blue">{s.name}</span>
-                  )}
-                  <span className="text-xs text-ibc-ink/60">{s.name}</span>
-                </a>
-              ))}
+            <div className="mt-8 flex flex-wrap items-end justify-center gap-8">
+              {sponsors.map((s) => {
+                const isMain = s.tier === "main";
+                return (
+                  <a
+                    key={s.id}
+                    href={s.website_url || undefined}
+                    target={s.website_url ? "_blank" : undefined}
+                    rel={s.website_url ? "noopener noreferrer" : undefined}
+                    className="flex flex-col items-center gap-2 text-center"
+                    title={s.description || s.name}
+                  >
+                    {s.logo_data_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.logo_data_url}
+                        alt={s.name}
+                        className={isMain ? "h-28 w-auto object-contain" : "h-9 w-auto object-contain"}
+                      />
+                    ) : (
+                      <span
+                        className={`font-display font-bold text-ibc-blue ${isMain ? "text-2xl" : "text-sm"}`}
+                      >
+                        {s.name}
+                      </span>
+                    )}
+                    <span className={isMain ? "text-sm text-ibc-ink/60" : "text-xs text-ibc-ink/60"}>
+                      {s.name}
+                    </span>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </section>

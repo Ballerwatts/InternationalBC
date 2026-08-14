@@ -15,18 +15,17 @@ export async function POST(request) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
-  const { name, category } = await request.json();
+  const { name, category, practice_location_name, practice_location_address } = await request.json();
   const cleanName = (name || "").trim();
   if (!cleanName) {
     return NextResponse.json({ error: "Le nom de l'équipe est requis." }, { status: 400 });
   }
 
   const maxOrder = query("SELECT COALESCE(MAX(sort_order), -1) as m FROM teams")[0].m;
-  const { lastInsertRowid } = run("INSERT INTO teams (name, category, sort_order) VALUES (?, ?, ?)", [
-    cleanName,
-    category || null,
-    maxOrder + 1,
-  ]);
+  const { lastInsertRowid } = run(
+    "INSERT INTO teams (name, category, sort_order, practice_location_name, practice_location_address) VALUES (?, ?, ?, ?, ?)",
+    [cleanName, category || null, maxOrder + 1, practice_location_name || null, practice_location_address || null]
+  );
 
   return NextResponse.json({ ok: true, id: lastInsertRowid });
 }

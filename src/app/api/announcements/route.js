@@ -12,14 +12,14 @@ export async function POST(request) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
-  const { title, body, published = 1 } = await request.json();
+  const { title, body, published = 1, image_data_url = null } = await request.json();
   if (!title || !body) {
     return NextResponse.json({ error: "title et body sont requis" }, { status: 400 });
   }
 
   const { lastInsertRowid } = run(
-    "INSERT INTO announcements (title, body, published) VALUES (?, ?, ?)",
-    [title, body, published ? 1 : 0]
+    "INSERT INTO announcements (title, body, published, image_data_url) VALUES (?, ?, ?, ?)",
+    [title, body, published ? 1 : 0, image_data_url || null]
   );
 
   return NextResponse.json({ ok: true, id: lastInsertRowid });

@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
-const FIELDS = ["name", "logo_data_url", "description", "website_url", "sort_order"];
+const FIELDS = ["name", "logo_data_url", "description", "website_url", "tier", "sort_order"];
 
 export async function PUT(request, { params }) {
   const unauthorized = await requireAdmin();

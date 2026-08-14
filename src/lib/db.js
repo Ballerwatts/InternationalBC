@@ -47,6 +47,8 @@ function migrate(db) {
       name TEXT NOT NULL,
       category TEXT, -- free text, e.g. 'Hommes 1', 'Hommes 2', 'Dames'
       sort_order INTEGER DEFAULT 0,
+      practice_location_name TEXT,
+      practice_location_address TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -54,9 +56,20 @@ function migrate(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       body TEXT NOT NULL,
+      image_data_url TEXT,
       published INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Up to a handful of admin-uploaded photos that rotate as standalone
+    -- slides in the homepage hero, alongside the headline slide and the
+    -- latest-announcement slide (see src/components/HeroSlider.js).
+    CREATE TABLE IF NOT EXISTS hero_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      image_data_url TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS players (
@@ -74,6 +87,7 @@ function migrate(db) {
       ppg REAL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       sort_order INTEGER DEFAULT 0,
+      custom_due_amount REAL, -- per-player override of the season total due (NULL = use the default gym+license+referee split)
       team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -209,6 +223,7 @@ function migrate(db) {
       logo_data_url TEXT,
       description TEXT,
       website_url TEXT,
+      tier TEXT NOT NULL DEFAULT 'standard', -- 'main' (shown larger) | 'standard' (shown ~1/3 the size)
       sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -243,6 +258,11 @@ function migrate(db) {
   addColumnIfMissing(db, "players", "bio", "TEXT");
 
   addColumnIfMissing(db, "players", "nationality", "TEXT");
+  addColumnIfMissing(db, "players", "custom_due_amount", "REAL");
+  addColumnIfMissing(db, "teams", "practice_location_name", "TEXT");
+  addColumnIfMissing(db, "teams", "practice_location_address", "TEXT");
+  addColumnIfMissing(db, "sponsors", "tier", "TEXT NOT NULL DEFAULT 'standard'");
+  addColumnIfMissing(db, "announcements", "image_data_url", "TEXT");
 
   migrateTeamNames(db);
   migrateEnglishDefaults(db);
@@ -344,6 +364,8 @@ const DEFAULT_SETTINGS = {
   budget_referee: "800",
   practice_location_name: "École de commerce Raymond-Uldry",
   practice_location_address: "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
+  highlight_title: "Highlight of the week",
+  highlight_body: "",
 };
 
 const SEED_PLAYERS = [
@@ -364,7 +386,12 @@ const SEED_TEAMS = [
   { name: "IBBC Youth Men's Team (U18M)", category: "U18M — Youth Men" },
   { name: "IBBC Women (NL1)", category: "NL1 — National League 1" },
   { name: "IBBC Men (3LCM)", category: "3ème Ligue Cantonale Masculine" },
-  { name: "IBBC Men (2LCM)", category: "Hommes 1 — 2ème Ligue Cantonale" },
+  {
+    name: "IBBC Men (2LCM)",
+    category: "Hommes 1 — 2ème Ligue Cantonale",
+    practice_location_name: "École Raymond-Uldry",
+    practice_location_address: "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
+  },
 ];
 
 function seed(db) {
@@ -376,8 +403,25 @@ function seed(db) {
 
   const teamCount = db.prepare("SELECT COUNT(*) as c FROM teams").get();
   if (teamCount.c === 0) {
-    const insert = db.prepare("INSERT INTO teams (name, category, sort_order) VALUES (?, ?, ?)");
-    SEED_TEAMS.forEach((t, i) => insert.run(t.name, t.category, i));
+    const insert = db.prepare(
+      "INSERT INTO teams (name, category, sort_order, practice_location_name, practice_location_address) VALUES (?, ?, ?, ?, ?)"
+    );
+    SEED_TEAMS.forEach((t, i) =>
+      insert.run(t.name, t.category, i, t.practice_location_name || null, t.practice_location_address || null)
+    );
+  } else {
+    // Backfill: an already-existing "IBBC Men (2LCM)" team (from before
+    // per-team locations existed) gets the known 2LCM practice location,
+    // but only if it doesn't already have one set — never overwrites an
+    // admin's own edit.
+    const row = db.prepare("SELECT id, practice_location_name FROM teams WHERE name = ?").get("IBBC Men (2LCM)");
+    if (row && !row.practice_location_name) {
+      db.prepare("UPDATE teams SET practice_location_name = ?, practice_location_address = ? WHERE id = ?").run(
+        "École Raymond-Uldry",
+        "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
+        row.id
+      );
+    }
   }
   // "IBBC Men (2LCM)" is the squad this app was originally built around —
   // everything not-yet-assigned to a team defaults to it below.

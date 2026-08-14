@@ -1,4 +1,4 @@
-import { getAllSettings } from "@/lib/db";
+import { getAllSettings, query } from "@/lib/db";
 import PracticeMap from "@/components/PracticeMap";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +6,7 @@ export const metadata = { title: "The Club — International Basketball Club Gen
 
 export default function ClubPage() {
   const settings = getAllSettings();
+  const teams = query("SELECT * FROM teams ORDER BY sort_order ASC, name ASC");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
@@ -21,14 +22,33 @@ export default function ClubPage() {
       </div>
 
       <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">
-        Practices
+        Practice locations
       </h2>
-      <p className="mt-2 text-ibc-ink/80">
-        Two sessions a week, on <strong>Monday</strong> and <strong>Thursday</strong>, from{" "}
-        <strong>8pm to 10pm</strong>, at {settings.practice_location_name}.
+      <p className="mt-2 text-sm text-ibc-ink/60">
+        Each squad's practice venue, set from the admin Équipes page.
       </p>
-      <p className="mt-1 text-sm text-ibc-ink/60">{settings.practice_location_address}</p>
-      <PracticeMap address={settings.practice_location_address} />
+      <div className="mt-4 space-y-6">
+        {teams.map((team) => {
+          const name = team.practice_location_name || settings.practice_location_name;
+          const address = team.practice_location_address || settings.practice_location_address;
+          return (
+            <div key={team.id} className="rounded-xl border border-black/5 bg-ibc-blue/5 p-4">
+              <p className="font-display text-base font-bold uppercase text-ibc-blue">
+                {team.name}
+              </p>
+              {name || address ? (
+                <>
+                  <p className="mt-1 text-sm text-ibc-ink/80">{name}</p>
+                  <p className="text-xs text-ibc-ink/60">{address}</p>
+                  {address && <PracticeMap address={address} />}
+                </>
+              ) : (
+                <p className="mt-1 text-sm text-ibc-ink/50">Location to be announced.</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">Games</h2>
       <p className="mt-2 text-ibc-ink/80">

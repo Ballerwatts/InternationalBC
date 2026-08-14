@@ -8,13 +8,11 @@ export async function PUT(request, { params }) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
-  const { title, body, published } = await request.json();
-  run("UPDATE announcements SET title = ?, body = ?, published = ?, updated_at = datetime('now') WHERE id = ?", [
-    title,
-    body,
-    published ? 1 : 0,
-    params.id,
-  ]);
+  const { title, body, published, image_data_url } = await request.json();
+  run(
+    "UPDATE announcements SET title = ?, body = ?, published = ?, image_data_url = ?, updated_at = datetime('now') WHERE id = ?",
+    [title, body, published ? 1 : 0, image_data_url || null, params.id]
+  );
 
   return NextResponse.json({ ok: true });
 }

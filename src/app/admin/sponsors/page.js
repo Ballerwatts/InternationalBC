@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { resizeImageToDataUrl } from "@/lib/image-client";
 
-const EMPTY = { name: "", logo_data_url: "", description: "", website_url: "" };
+const EMPTY = { name: "", logo_data_url: "", description: "", website_url: "", tier: "standard" };
 
 export default function SponsorsAdminPage() {
   const [sponsors, setSponsors] = useState([]);
@@ -19,7 +19,7 @@ export default function SponsorsAdminPage() {
 
   async function handleLogo(file, setter) {
     if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 600);
+    const dataUrl = await resizeImageToDataUrl(file, 600, 0.85, { keepPng: true });
     setter((f) => ({ ...f, logo_data_url: dataUrl }));
   }
 
@@ -94,6 +94,19 @@ export default function SponsorsAdminPage() {
             onChange={(e) => setNewSponsor({ ...newSponsor, website_url: e.target.value })}
             className="input col-span-2"
           />
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Format d&apos;affichage
+            </label>
+            <select
+              value={newSponsor.tier}
+              onChange={(e) => setNewSponsor({ ...newSponsor, tier: e.target.value })}
+              className="input"
+            >
+              <option value="standard">Sponsor standard (petit format)</option>
+              <option value="main">Sponsor principal (grand format, ~3x plus grand)</option>
+            </select>
+          </div>
           <textarea
             placeholder="Description"
             value={newSponsor.description}
@@ -142,7 +155,7 @@ function SponsorRow({ sponsor, open, onToggle, onSave, onDelete }) {
 
   async function handleLogo(file) {
     if (!file) return;
-    const dataUrl = await resizeImageToDataUrl(file, 600);
+    const dataUrl = await resizeImageToDataUrl(file, 600, 0.85, { keepPng: true });
     setForm((f) => ({ ...f, logo_data_url: dataUrl }));
   }
 
@@ -156,7 +169,14 @@ function SponsorRow({ sponsor, open, onToggle, onSave, onDelete }) {
           )}
         </div>
         <div className="flex-1">
-          <p className="font-semibold text-ibc-ink">{sponsor.name}</p>
+          <p className="font-semibold text-ibc-ink">
+            {sponsor.name}{" "}
+            {sponsor.tier === "main" && (
+              <span className="ml-1 rounded-full bg-ibc-accent/30 px-2 py-0.5 text-[10px] font-bold uppercase text-ibc-ink/70">
+                Principal
+              </span>
+            )}
+          </p>
           <p className="text-xs text-ibc-ink/50">{sponsor.website_url || "pas de site web"}</p>
         </div>
         <span className="text-xs font-bold uppercase text-ibc-blue">{open ? "fermer" : "modifier"}</span>
@@ -180,6 +200,19 @@ function SponsorRow({ sponsor, open, onToggle, onSave, onDelete }) {
             onChange={(e) => setForm({ ...form, website_url: e.target.value })}
             placeholder="Site web"
           />
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Format d&apos;affichage
+            </label>
+            <select
+              value={form.tier || "standard"}
+              onChange={(e) => setForm({ ...form, tier: e.target.value })}
+              className="input"
+            >
+              <option value="standard">Sponsor standard (petit format)</option>
+              <option value="main">Sponsor principal (grand format, ~3x plus grand)</option>
+            </select>
+          </div>
           <textarea
             className="input col-span-2"
             rows={3}

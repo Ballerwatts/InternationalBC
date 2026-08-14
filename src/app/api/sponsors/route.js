@@ -21,8 +21,15 @@ export async function POST(request) {
   const maxOrder = query("SELECT COALESCE(MAX(sort_order), -1) as m FROM sponsors")[0].m;
 
   const { lastInsertRowid } = run(
-    "INSERT INTO sponsors (name, logo_data_url, description, website_url, sort_order) VALUES (?, ?, ?, ?, ?)",
-    [s.name, s.logo_data_url || null, s.description || null, s.website_url || null, maxOrder + 1]
+    "INSERT INTO sponsors (name, logo_data_url, description, website_url, tier, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+    [
+      s.name,
+      s.logo_data_url || null,
+      s.description || null,
+      s.website_url || null,
+      s.tier === "main" ? "main" : "standard",
+      maxOrder + 1,
+    ]
   );
 
   return NextResponse.json({ ok: true, id: lastInsertRowid });

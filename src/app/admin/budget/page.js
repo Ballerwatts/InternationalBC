@@ -34,12 +34,16 @@ const EMPTY_ENTRY = {
 export default function BudgetAdminPage() {
   const [entries, setEntries] = useState([]);
   const [entryForm, setEntryForm] = useState(EMPTY_ENTRY);
+  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [editingEntryForm, setEditingEntryForm] = useState(null);
 
   const [settings, setSettings] = useState(null);
   const [summary, setSummary] = useState(null);
   const [openPlayerId, setOpenPlayerId] = useState(null);
   const [payments, setPayments] = useState([]);
   const [form, setForm] = useState({ category: "gym", amount: "", paid_on: "", note: "" });
+  const [editingPaymentId, setEditingPaymentId] = useState(null);
+  const [editingPaymentForm, setEditingPaymentForm] = useState(null);
   const [showDues, setShowDues] = useState(false);
 
   function refreshEntries() {
@@ -71,6 +75,22 @@ export default function BudgetAdminPage() {
   async function deleteEntry(id) {
     if (!confirm("Supprimer cette ligne ?")) return;
     await fetch(`/api/budget/entries/${id}`, { method: "DELETE" });
+    refreshEntries();
+  }
+
+  function startEditEntry(e) {
+    setEditingEntryId(e.id);
+    setEditingEntryForm({ ...e });
+  }
+
+  async function saveEditEntry() {
+    await fetch(`/api/budget/entries/${editingEntryId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...editingEntryForm, amount: Number(editingEntryForm.amount) }),
+    });
+    setEditingEntryId(null);
+    setEditingEntryForm(null);
     refreshEntries();
   }
 
@@ -113,6 +133,32 @@ export default function BudgetAdminPage() {
   async function deletePayment(id, playerId) {
     await fetch(`/api/payments/${id}`, { method: "DELETE" });
     fetch(`/api/players/${playerId}/payments`).then((r) => r.json()).then(setPayments);
+    refreshSummary();
+  }
+
+  function startEditPayment(pay) {
+    setEditingPaymentId(pay.id);
+    setEditingPaymentForm({ ...pay });
+  }
+
+  async function saveEditPayment(playerId) {
+    await fetch(`/api/payments/${editingPaymentId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...editingPaymentForm, amount: Number(editingPaymentForm.amount) }),
+    });
+    setEditingPaymentId(null);
+    setEditingPaymentForm(null);
+    fetch(`/api/players/${playerId}/payments`).then((r) => r.json()).then(setPayments);
+    refreshSummary();
+  }
+
+  async function saveDueAmount(playerId, value) {
+    await fetch(`/api/players/${playerId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ custom_due_amount: value === "" ? "" : Number(value) }),
+    });
     refreshSummary();
   }
 
@@ -210,38 +256,112 @@ export default function BudgetAdminPage() {
                 </td>
               </tr>
             )}
-            {entries.map((e) => (
-              <tr key={e.id} className="border-b border-black/5">
-                <td className="px-4 py-2">{e.entry_date}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase ${
-                      e.entry_type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+            {entries.map((e) =>
+              editingEntryId === e.id ? (
+                <tr key={e.id} className="border-b border-black/5 bg-ibc-blue/5">
+                  <td className="px-4 py-2">
+                    <input
+                      type="date"
+                      value={editingEntryForm.entry_date}
+                      onChange={(ev) => setEditingEntryForm({ ...editingEntryForm, entry_date: ev.target.value })}
+                      className="input"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={editingEntryForm.entry_type}
+                      onChange={(ev) =>
+                        setEditingEntryForm({
+                          ...editingEntryForm,
+                          entry_type: ev.target.value,
+                          category: ev.target.value === "income" ? "player_fees" : "gym",
+                        })
+                      }
+                      className="input"
+                    >
+                      <option value="expense">Sortie (out)</option>
+                      <option value="income">Entrée (in)</option>
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <select
+                      value={editingEntryForm.category}
+                      onChange={(ev) => setEditingEntryForm({ ...editingEntryForm, category: ev.target.value })}
+                      className="input"
+                    >
+                      {(editingEntryForm.entry_type === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      value={editingEntryForm.description || ""}
+                      onChange={(ev) => setEditingEntryForm({ ...editingEntryForm, description: ev.target.value })}
+                      className="input"
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="number"
+                      value={editingEntryForm.amount}
+                      onChange={(ev) => setEditingEntryForm({ ...editingEntryForm, amount: ev.target.value })}
+                      className="input"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={saveEditEntry} className="text-xs font-bold uppercase text-ibc-blue hover:underline">
+                      enregistrer
+                    </button>
+                    <button
+                      onClick={() => setEditingEntryId(null)}
+                      className="ml-2 text-xs font-bold uppercase text-ibc-ink/50 hover:underline"
+                    >
+                      annuler
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={e.id} className="border-b border-black/5">
+                  <td className="px-4 py-2">{e.entry_date}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase ${
+                        e.entry_type === "income" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {e.entry_type === "income" ? "In" : "Out"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2">{ENTRY_CATEGORY_LABELS[e.category] || e.category}</td>
+                  <td className="px-4 py-2 text-ibc-ink/70">{e.description || "—"}</td>
+                  <td
+                    className={`px-4 py-2 font-semibold ${
+                      e.entry_type === "income" ? "text-green-700" : "text-red-700"
                     }`}
                   >
-                    {e.entry_type === "income" ? "In" : "Out"}
-                  </span>
-                </td>
-                <td className="px-4 py-2">{ENTRY_CATEGORY_LABELS[e.category] || e.category}</td>
-                <td className="px-4 py-2 text-ibc-ink/70">{e.description || "—"}</td>
-                <td
-                  className={`px-4 py-2 font-semibold ${
-                    e.entry_type === "income" ? "text-green-700" : "text-red-700"
-                  }`}
-                >
-                  {e.entry_type === "income" ? "+" : "-"}
-                  {e.amount} CHF
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <button
-                    onClick={() => deleteEntry(e.id)}
-                    className="text-xs font-bold uppercase text-red-500 hover:underline"
-                  >
-                    supprimer
-                  </button>
-                </td>
-              </tr>
-            ))}
+                    {e.entry_type === "income" ? "+" : "-"}
+                    {e.amount} CHF
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button
+                      onClick={() => startEditEntry(e)}
+                      className="text-xs font-bold uppercase text-ibc-blue hover:underline"
+                    >
+                      modifier
+                    </button>
+                    <button
+                      onClick={() => deleteEntry(e.id)}
+                      className="ml-2 text-xs font-bold uppercase text-red-500 hover:underline"
+                    >
+                      supprimer
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       </div>
@@ -287,8 +407,9 @@ export default function BudgetAdminPage() {
                 <tr className="border-b border-black/5 text-left text-xs uppercase text-ibc-ink/50">
                   <th className="px-4 py-2">Joueur</th>
                   <th className="px-4 py-2">Payé</th>
-                  <th className="px-4 py-2">Dû</th>
+                  <th className="px-4 py-2">Dû (CHF)</th>
                   <th className="px-4 py-2">Solde</th>
+                  <th className="px-4 py-2">Licence</th>
                   <th className="px-4 py-2"></th>
                 </tr>
               </thead>
@@ -300,13 +421,31 @@ export default function BudgetAdminPage() {
                         {p.first_name} {p.last_name}
                       </td>
                       <td className="px-4 py-2">{p.totalPaid} CHF</td>
-                      <td className="px-4 py-2">{p.totalDue} CHF</td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          defaultValue={p.custom_due_amount ?? ""}
+                          placeholder={String(summary.totalDue)}
+                          onBlur={(ev) => saveDueAmount(p.id, ev.target.value)}
+                          title="Montant dû personnalisé — laisser vide pour utiliser la répartition par défaut"
+                          className="w-24 rounded-md border border-black/10 px-2 py-1 text-xs"
+                        />
+                      </td>
                       <td
                         className={`px-4 py-2 font-semibold ${
                           p.balance > 0 ? "text-red-600" : "text-green-600"
                         }`}
                       >
                         {p.balance > 0 ? `${p.balance} CHF dû` : "à jour"}
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase ${
+                            p.licensePaid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {p.licensePaid ? "Payée" : "Impayée"}
+                        </span>
                       </td>
                       <td className="px-4 py-2 text-right">
                         <button
@@ -319,7 +458,7 @@ export default function BudgetAdminPage() {
                     </tr>
                     {openPlayerId === p.id && (
                       <tr>
-                        <td colSpan={5} className="bg-ibc-blue/5 px-4 py-4">
+                        <td colSpan={6} className="bg-ibc-blue/5 px-4 py-4">
                           <div className="grid gap-4 sm:grid-cols-2">
                             <div>
                               <p className="text-xs font-bold uppercase text-ibc-blue">Paiements enregistrés</p>
@@ -327,21 +466,74 @@ export default function BudgetAdminPage() {
                                 {payments.length === 0 && (
                                   <li className="text-xs text-ibc-ink/50">Aucun paiement enregistré.</li>
                                 )}
-                                {payments.map((pay) => (
-                                  <li key={pay.id} className="flex items-center justify-between text-xs">
-                                    <span>
-                                      {CATEGORY_LABELS[pay.category] || pay.category} — {pay.amount} CHF
-                                      {pay.paid_on ? ` (${pay.paid_on})` : ""}
-                                      {pay.note ? ` · ${pay.note}` : ""}
-                                    </span>
-                                    <button
-                                      onClick={() => deletePayment(pay.id, p.id)}
-                                      className="ml-2 text-red-500 hover:underline"
-                                    >
-                                      supprimer
-                                    </button>
-                                  </li>
-                                ))}
+                                {payments.map((pay) =>
+                                  editingPaymentId === pay.id ? (
+                                    <li key={pay.id} className="flex flex-wrap items-center gap-1 text-xs">
+                                      <select
+                                        value={editingPaymentForm.category}
+                                        onChange={(ev) =>
+                                          setEditingPaymentForm({ ...editingPaymentForm, category: ev.target.value })
+                                        }
+                                        className="rounded border border-black/10 px-1 py-0.5"
+                                      >
+                                        <option value="gym">Salle</option>
+                                        <option value="license">Licence</option>
+                                        <option value="referee">Arbitrage</option>
+                                        <option value="other">Autre</option>
+                                      </select>
+                                      <input
+                                        type="number"
+                                        value={editingPaymentForm.amount}
+                                        onChange={(ev) =>
+                                          setEditingPaymentForm({ ...editingPaymentForm, amount: ev.target.value })
+                                        }
+                                        className="w-16 rounded border border-black/10 px-1 py-0.5"
+                                      />
+                                      <input
+                                        type="date"
+                                        value={editingPaymentForm.paid_on || ""}
+                                        onChange={(ev) =>
+                                          setEditingPaymentForm({ ...editingPaymentForm, paid_on: ev.target.value })
+                                        }
+                                        className="rounded border border-black/10 px-1 py-0.5"
+                                      />
+                                      <button
+                                        onClick={() => saveEditPayment(p.id)}
+                                        className="font-bold uppercase text-ibc-blue hover:underline"
+                                      >
+                                        ok
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingPaymentId(null)}
+                                        className="text-ibc-ink/50 hover:underline"
+                                      >
+                                        annuler
+                                      </button>
+                                    </li>
+                                  ) : (
+                                    <li key={pay.id} className="flex items-center justify-between text-xs">
+                                      <span>
+                                        {CATEGORY_LABELS[pay.category] || pay.category} — {pay.amount} CHF
+                                        {pay.paid_on ? ` (${pay.paid_on})` : ""}
+                                        {pay.note ? ` · ${pay.note}` : ""}
+                                      </span>
+                                      <span className="shrink-0">
+                                        <button
+                                          onClick={() => startEditPayment(pay)}
+                                          className="text-ibc-blue hover:underline"
+                                        >
+                                          modifier
+                                        </button>
+                                        <button
+                                          onClick={() => deletePayment(pay.id, p.id)}
+                                          className="ml-2 text-red-500 hover:underline"
+                                        >
+                                          supprimer
+                                        </button>
+                                      </span>
+                                    </li>
+                                  )
+                                )}
                               </ul>
                             </div>
                             <div>
