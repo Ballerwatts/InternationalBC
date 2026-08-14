@@ -242,44 +242,7 @@ function migrate(db) {
   addColumnIfMissing(db, "access_requests", "requested_team_id", "INTEGER REFERENCES teams(id) ON DELETE SET NULL");
   addColumnIfMissing(db, "players", "bio", "TEXT");
 
-  addColumnIfMissing(db, "players", "nationality", "TEXT");
-
   migrateTeamNames(db);
-  migrateEnglishDefaults(db);
-}
-
-// One-time text fix: databases created before the English-default rename
-// already have the old French hero/club text saved as real rows in
-// `settings` (seed() only inserts on an empty table, so changing
-// DEFAULT_SETTINGS in code doesn't retroactively touch a database that's
-// already been seeded). This overwrites those specific values ONLY if they
-// still exactly match the old French defaults — so any custom text an
-// admin has since typed in from /admin/hero is left untouched.
-function migrateEnglishDefaults(db) {
-  const OLD_TO_NEW = {
-    hero_headline: {
-      old: "International Basketball Club Genève",
-      new: "International Basketball Club Geneva",
-    },
-    hero_subheadline: {
-      old: "2ème Ligue Cantonale — A.C.G.B.A.",
-      new: "IBBC — Geneva Amateur Basketball Association",
-    },
-    hero_body: {
-      old: "Le club de basketball IBC Genève. Une seule équipe, un seul objectif : représenter fièrement nos couleurs chaque semaine en 2ème ligue cantonale.",
-      new: "IBBC Geneva fields four squads — U18M, NL1, 3LCM and 2LCM — competing every week across the Geneva basketball leagues.",
-    },
-    club_about: {
-      old: "International Basketball Club Genève réunit une équipe qui évolue en 2ème ligue cantonale (A.C.G.B.A.), la plus haute ligue amateur du canton. Entraînements le lundi et le jeudi, matches le week-end — dans l'esprit sportif et communautaire du club.",
-      new: "International Basketball Club Geneva (IBBC) fields four squads — IBBC Youth Men's Team (U18M), IBBC Women (NL1), IBBC Men (3LCM) and IBBC Men (2LCM) — competing in the Geneva Amateur Basketball Association (ACGBA) championship from October to May, in a spirit of sport and community.",
-    },
-  };
-  for (const [key, { old, new: next }] of Object.entries(OLD_TO_NEW)) {
-    const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
-    if (row && row.value === old) {
-      db.prepare("UPDATE settings SET value = ? WHERE key = ?").run(next, key);
-    }
-  }
 }
 
 // One-time rename: the club originally seeded 3 teams (IBBC 1 / IBBC 2 /

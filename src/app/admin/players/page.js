@@ -18,7 +18,6 @@ const EMPTY = {
   active: 1,
   team_id: "",
   bio: "",
-  nationality: "",
 };
 
 export default function PlayersAdminPage() {
@@ -116,12 +115,6 @@ export default function PlayersAdminPage() {
             placeholder="Téléphone"
             value={newPlayer.phone}
             onChange={(e) => setNewPlayer({ ...newPlayer, phone: e.target.value })}
-            className="input"
-          />
-          <input
-            placeholder="Nationalité"
-            value={newPlayer.nationality}
-            onChange={(e) => setNewPlayer({ ...newPlayer, nationality: e.target.value })}
             className="input"
           />
           <select
@@ -224,7 +217,6 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
           <LabeledInput label="Email" value={form.email || ""} onChange={(v) => setForm({ ...form, email: v })} />
           <LabeledInput label="Téléphone" value={form.phone || ""} onChange={(v) => setForm({ ...form, phone: v })} />
           <LabeledInput label="Poste" value={form.position || ""} onChange={(v) => setForm({ ...form, position: v })} />
-          <LabeledInput label="Nationalité" value={form.nationality || ""} onChange={(v) => setForm({ ...form, nationality: v })} />
           <div>
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Équipe</label>
             <select
