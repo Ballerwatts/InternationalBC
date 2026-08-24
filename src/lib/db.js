@@ -284,6 +284,86 @@ function migrate(db) {
     -- Instagram posts hand-picked for the public gallery. We store only the
     -- permalink and let Instagram's own embed script render it, so there is
     -- no Meta app, no access token and nothing to refresh every 60 days.
+    -- ── Newsletter ────────────────────────────────────────────────────────
+    -- One newsletter issue. team_id NULL = whole club. The content lives in
+    -- blocks_json (an ordered array of typed blocks, see
+    -- src/lib/email-template.js) so a block can be reordered or dropped
+    -- without a schema change.
+    CREATE TABLE IF NOT EXISTS newsletters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject TEXT NOT NULL,
+      preheader TEXT,                       -- inbox preview line
+      team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      audience TEXT NOT NULL DEFAULT 'players,users',  -- csv: players|users|guardians
+      blocks_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'draft',            -- draft|scheduled|sending|sent|failed
+      week_start_date TEXT,                 -- Monday the auto-draft was built for
+      scheduled_for TEXT,
+      sent_at TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- The recipient list frozen at send time. Resolving the audience again
+    -- later would give a different answer (someone joins, someone opts out),
+    -- so the log would stop being auditable. Re-running a send only picks up
+    -- rows still 'queued' or 'failed', which is what makes a crash mid-send
+    -- safe to retry without double-mailing anyone.
+    CREATE TABLE IF NOT EXISTS newsletter_recipients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      newsletter_id INTEGER NOT NULL REFERENCES newsletters(id) ON DELETE CASCADE,
+      email TEXT NOT NULL,
+      name TEXT,
+      source TEXT NOT NULL,                 -- player|user|guardian
+      player_id INTEGER REFERENCES players(id) ON DELETE SET NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'queued',-- queued|sent|failed|skipped
+      error TEXT,
+      sent_at TEXT,
+      UNIQUE(newsletter_id, email)
+    );
+
+    -- Parents / legal guardians of under-18 players. Two per player is normal.
+    -- Personal data: only ever exposed through /admin screens, and cascaded
+    -- away with the player.
+    CREATE TABLE IF NOT EXISTS player_guardians (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      relation TEXT,                        -- 'mother' | 'father' | 'guardian'
+      receives_newsletter INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Every email the app sends, whatever the feature — including the
+    -- dev-mode fallback (status 'dev') and failures. This is the audit
+    -- trail behind /admin/emails.
+    CREATE TABLE IF NOT EXISTS email_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      to_email TEXT NOT NULL,
+      subject TEXT,
+      category TEXT NOT NULL DEFAULT 'other', -- newsletter|weekly_reminder|access_request|test|other
+      newsletter_id INTEGER REFERENCES newsletters(id) ON DELETE SET NULL,
+      status TEXT NOT NULL,                   -- sent|failed|dev
+      message_id TEXT,
+      response TEXT,                          -- SMTP response or error, truncated to 500
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Newsletter opt-outs, keyed by address so it survives a player row
+    -- being deleted and recreated. Operational mail (weekly reminder,
+    -- access requests) deliberately ignores this table.
+    CREATE TABLE IF NOT EXISTS email_optouts (
+      email TEXT PRIMARY KEY,
+      token TEXT NOT NULL,
+      reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS instagram_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       post_url TEXT NOT NULL,
@@ -331,6 +411,14 @@ function migrate(db) {
     "availability_id",
     "INTEGER REFERENCES availability(id) ON DELETE SET NULL"
   );
+
+  // Who is under 18 — decides whether a guardian may be mailed at all.
+  // When the date is missing we fall back to "is this player in the U18
+  // squad", which is right often enough and never mails a stranger.
+  addColumnIfMissing(db, "players", "birth_date", "TEXT");
+  // NULL = club-wide. Without this an announcement cannot be targeted, and
+  // club news leaks into a single-squad newsletter with no way to stop it.
+  addColumnIfMissing(db, "announcements", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
 
   migrateTeamNames(db);
   migrateEnglishDefaults(db);

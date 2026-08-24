@@ -331,6 +331,76 @@ to expand the edit form). The one player from your original list who wasn't
 in your final confirmation ("Williams Matthew") was left out — add him back
 the same way if that was an oversight.
 
+## Newsletter
+
+A weekly HTML email of results, fixtures, player of the week, practice focus
+and club news — **segmented by squad**. An issue addressed to one squad
+contains that squad's content and that squad's people, and nothing belonging
+to another squad. `npm test` asserts exactly that.
+
+Two screens, both under **Marketing** in the admin sidebar:
+
+- **`/admin/newsletter`** — the issues. Create one, pick who it is for,
+  press *Generate from this week's data*, edit and reorder the blocks,
+  preview it at desktop and mobile width, send yourself a test, then send.
+- **`/admin/emails`** — every message the site has sent, with the mail
+  server's own response, plus the SMTP status panel and a *Verify
+  connection* button.
+
+### Who receives an issue
+
+Pick a squad (or the whole club) and tick any of three sources:
+
+| source | who |
+|---|---|
+| Players | `players.email`, active members of that squad |
+| Accounts | `users.email` — admins, coaches and players who can log in |
+| Guardians | parents of **under-18** players who have not opted out |
+
+Guardians only ever receive their own child's squad's issue, and only when
+the player is a minor — by `players.birth_date`, or, when that is blank, by
+the squad being a youth squad. Addresses are deduplicated case-insensitively,
+so a coach who is also a player gets exactly one copy. Opt-outs and invalid
+addresses are recorded as *skipped* with a reason rather than quietly
+disappearing, which is why the compose screen can tell you why 45 became 42.
+
+Guardian contact details are edited per player on `/admin/players`, and are
+deleted with the player.
+
+### Weekly drafts, never an automatic send
+
+`GET or POST /api/cron/weekly-newsletter` (same `CRON_SECRET` as the Monday
+reminder) builds one draft per squad for the current week, skips a squad
+with nothing to say, and emails the admins a link. **It never sends the
+newsletter** — a mailing that sends itself is one bad fixture import away
+from telling sixty people the wrong score. Point the same scheduler at it as
+the Monday reminder:
+
+```
+https://your-domain/api/cron/weekly-newsletter?secret=YOUR_CRON_SECRET
+```
+
+It is idempotent on (week, squad): calling it twice creates one draft.
+
+### Sending, retrying, and the log
+
+Recipients are frozen into `newsletter_recipients` before the first message
+goes out, and each person gets their own message — never a BCC blast — so
+each has their own name and their own unsubscribe token. Re-running a send
+only picks up rows still queued or failed, so *Retry failed* and *Send* are
+the same operation and a crash mid-send cannot double-mail anyone.
+
+Every send writes one `email_log` row, including failures and including the
+dev-mode fallback (`status = 'dev'`) when `SMTP_HOST` is unset. The Monday
+reminder and account emails log there too, so `/admin/emails` covers all
+outbound mail.
+
+Unsubscribing is one click from the footer, with no login: the link carries
+an HMAC of the address keyed on `SESSION_SECRET`, so there is no id to
+enumerate and no lookup table to keep. Operational mail — practice
+reminders, account emails — ignores opt-outs, because those are not
+marketing.
+
 ## Monday reminder automation
 
 `GET or POST /api/cron/weekly-reminder` (optionally protected by
@@ -359,7 +429,12 @@ sending, so nothing breaks in local development. Any SMTP mailbox works:
 Gmail (create an "app password" under your Google Account security
 settings — your normal password won't work), Infomaniak, your own domain's
 mail provider, etc. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
-`FROM_EMAIL` — see `.env.example`.
+`FROM_EMAIL` — see `.env.example`. Also set `SITE_URL` to the live domain:
+images and links inside an email cannot be relative.
+
+To check it from the app: **/admin/emails → Verify connection** opens a real
+connection and authenticates, and the box beside it sends a test message.
+Whatever happens lands in the log underneath.
 
 ### WhatsApp reminders (optional)
 

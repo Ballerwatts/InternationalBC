@@ -5,8 +5,14 @@
 //
 // Required env vars in production: SMTP_HOST, SMTP_PORT, SMTP_USER,
 // SMTP_PASS, FROM_EMAIL. See .env.example.
+//
+// Every send — real, failed, or dev-mode — writes one row to `email_log`.
+// That table is the whole answer to "did the club actually receive it?",
+// so logging must never be the reason a send fails: it is wrapped and
+// swallowed on purpose.
 
 import nodemailer from "nodemailer";
+import { run } from "@/lib/db";
 
 let _transporter;
 
@@ -32,23 +38,74 @@ function getTransporter() {
   return _transporter;
 }
 
-export async function sendEmail({ to, subject, html, text, attachments }) {
+/** Which SMTP settings are present. Never reports SMTP_PASS's value. */
+export function smtpStatus() {
+  return {
+    configured: !!process.env.SMTP_HOST,
+    host: process.env.SMTP_HOST || null,
+    port: Number(process.env.SMTP_PORT || 587),
+    user: process.env.SMTP_USER || null,
+    // Presence only. The value never leaves the server, not even masked —
+    // a masked secret in a JSON payload is still a secret in a JSON payload.
+    hasPassword: !!process.env.SMTP_PASS,
+    from: process.env.FROM_EMAIL || null,
+    siteUrl: process.env.SITE_URL || "https://internationalbc.fly.dev",
+  };
+}
+
+export async function verifySmtp() {
+  const transporter = getTransporter();
+  if (!transporter) return { ok: false, dev: true, error: "SMTP_HOST is not set — running in dev mode." };
+  try {
+    await transporter.verify();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+function logSend({ to, subject, category, newsletterId, status, messageId, response }) {
+  try {
+    run(
+      `INSERT INTO email_log (to_email, subject, category, newsletter_id, status, message_id, response)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        String(to || "").slice(0, 320),
+        subject ? String(subject).slice(0, 500) : null,
+        category || "other",
+        newsletterId ?? null,
+        status,
+        messageId || null,
+        response ? String(response).slice(0, 500) : null,
+      ]
+    );
+  } catch (e) {
+    // Never let the audit trail break the thing it is auditing.
+    console.error("[email] could not write email_log row:", e?.message || e);
+  }
+}
+
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+  attachments,
+  category = "other",
+  newsletterId = null,
+}) {
   const from =
     process.env.FROM_EMAIL || "International Basketball Club Genève <no-reply@international-bc-geneve.local>";
   const transporter = getTransporter();
+  const recipient = Array.isArray(to) ? to.join(", ") : to;
 
   if (!transporter) {
-    console.log("[email:dev-mode] Would send email:", { to, subject });
+    console.log("[email:dev-mode] Would send email:", { to: recipient, subject });
+    logSend({ to: recipient, subject, category, newsletterId, status: "dev", response: "SMTP_HOST unset" });
     return { ok: true, dev: true };
   }
 
-  const mail = {
-    from,
-    to: Array.isArray(to) ? to.join(", ") : to,
-    subject,
-    html,
-    text,
-  };
+  const mail = { from, to: recipient, subject, html, text };
 
   if (attachments && attachments.length) {
     mail.attachments = attachments.map((a) => ({
@@ -57,6 +114,96 @@ export async function sendEmail({ to, subject, html, text, attachments }) {
     }));
   }
 
-  await transporter.sendMail(mail);
-  return { ok: true };
+  try {
+    const info = await transporter.sendMail(mail);
+    logSend({
+      to: recipient,
+      subject,
+      category,
+      newsletterId,
+      status: "sent",
+      messageId: info?.messageId,
+      response: info?.response,
+    });
+    return { ok: true, messageId: info?.messageId, dev: false };
+  } catch (e) {
+    logSend({
+      to: recipient,
+      subject,
+      category,
+      newsletterId,
+      status: "failed",
+      response: e?.message || String(e),
+    });
+    // Re-thrown so existing callers (the Monday reminder) keep their own
+    // per-recipient try/catch semantics.
+    throw e;
+  }
+}
+
+/**
+ * A hard bounce is settled: the mailbox does not exist and it will not
+ * exist in 200ms either. Retrying one wastes a send and, repeated, is how
+ * a domain earns a reputation problem.
+ */
+export function isPermanentFailure(error) {
+  const code = Number(error?.responseCode || 0);
+  if (code >= 500 && code < 600) return true;
+  return /5\.1\.[01]|user unknown|no such user|mailbox unavailable/i.test(String(error?.message || ""));
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Send one message per recipient — never a BCC blast, because each person
+ * gets their own name in the greeting and their own unsubscribe token.
+ *
+ * @param {Array} messages  [{ to, subject, html, text, category, newsletterId, ref }]
+ * @param {{concurrency?: number, delayMs?: number, onResult?: Function}} opts
+ * @returns {Promise<Array<{ref, to, ok, messageId, error, permanent}>>}
+ */
+export async function sendBatch(messages, { concurrency = 5, delayMs = 200, onResult } = {}) {
+  const queue = [...messages];
+  const results = [];
+
+  async function sendOne(msg) {
+    try {
+      const info = await sendEmail(msg);
+      return { ref: msg.ref, to: msg.to, ok: true, messageId: info?.messageId, dev: !!info?.dev };
+    } catch (e) {
+      if (isPermanentFailure(e)) {
+        return { ref: msg.ref, to: msg.to, ok: false, error: e?.message || String(e), permanent: true };
+      }
+      // One retry for the transient class: connection reset, greylisting,
+      // 4xx "try again later".
+      await sleep(500);
+      try {
+        const info = await sendEmail(msg);
+        return { ref: msg.ref, to: msg.to, ok: true, messageId: info?.messageId, retried: true };
+      } catch (e2) {
+        return { ref: msg.ref, to: msg.to, ok: false, error: e2?.message || String(e2), permanent: false };
+      }
+    }
+  }
+
+  async function worker() {
+    while (queue.length) {
+      const msg = queue.shift();
+      const result = await sendOne(msg);
+      results.push(result);
+      if (onResult) {
+        try {
+          await onResult(result, msg);
+        } catch (e) {
+          console.error("[email] onResult threw:", e?.message || e);
+        }
+      }
+      // A small gap between messages keeps a shared SMTP relay from
+      // treating the club's Monday send as a burst worth throttling.
+      if (delayMs) await sleep(delayMs);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, messages.length)) }, worker));
+  return results;
 }

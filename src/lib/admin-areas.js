@@ -22,6 +22,8 @@ export const ADMIN_GROUPS = [
       { href: "/admin/sponsors", label: "Sponsors" },
       { href: "/admin/gym", label: "Gym" },
       { href: "/admin/teams", label: "Teams" },
+      { href: "/admin/newsletter", label: "Newsletter" },
+      { href: "/admin/emails", label: "Email log" },
       // The Instagram gallery pulls in a third-party embed script, so it
       // stays locked to the super-admin even for a marketing delegate.
       { href: "/admin/social", label: "Social & Instagram", superAdminOnly: true },

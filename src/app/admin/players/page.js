@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ImageDropzone from "@/components/ImageDropzone";
 
 const EMPTY = {
@@ -293,6 +293,14 @@ function PlayerRow({ player, teams, open, onToggle, onSave, onDelete }) {
           <LabeledInput label="Phone" value={form.phone || ""} onChange={(v) => setForm({ ...form, phone: v })} />
           <LabeledInput label="Position" value={form.position || ""} onChange={(v) => setForm({ ...form, position: v })} />
           <LabeledInput label="Nationality" value={form.nationality || ""} onChange={(v) => setForm({ ...form, nationality: v })} />
+          <LabeledInput
+            label="Date of birth"
+            type="date"
+            value={form.birth_date || ""}
+            onChange={(v) => setForm({ ...form, birth_date: v })}
+          />
+          <Guardians playerId={player.id} />
+
           <div>
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">Team</label>
             <select
@@ -387,6 +395,134 @@ function LabeledInput({ label, value, onChange, type = "text", step }) {
         onChange={(e) => onChange(e.target.value)}
         className="input w-full"
       />
+    </div>
+  );
+}
+
+/**
+ * Parents / legal guardians. Contact details for someone who is not a club
+ * member at all, so they live here behind the members screen and nowhere
+ * else — and they cascade away with the player.
+ */
+function Guardians({ playerId }) {
+  const [rows, setRows] = useState([]);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: "", email: "", phone: "", relation: "mother" });
+
+  const refresh = useCallback(() => {
+    fetch(`/api/players/${playerId}/guardians`)
+      .then((r) => r.json())
+      .then((d) => setRows(Array.isArray(d) ? d : []));
+  }, [playerId]);
+
+  useEffect(refresh, [refresh]);
+
+  async function add(e) {
+    e.preventDefault();
+    if (!draft.name) return;
+    await fetch(`/api/players/${playerId}/guardians`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    });
+    setDraft({ name: "", email: "", phone: "", relation: "mother" });
+    setAdding(false);
+    refresh();
+  }
+
+  async function patch(id, changes) {
+    await fetch(`/api/guardians/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+    });
+    refresh();
+  }
+
+  async function remove(id) {
+    if (!confirm("Delete this guardian's contact details?")) return;
+    await fetch(`/api/guardians/${id}`, { method: "DELETE" });
+    refresh();
+  }
+
+  return (
+    <div className="col-span-2 mt-2 rounded-lg border border-black/5 bg-black/[.015] p-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-bold uppercase text-ibc-blue/70">Parents / guardians</h4>
+        <button
+          type="button"
+          onClick={() => setAdding((a) => !a)}
+          className="rounded-full bg-ibc-blue/10 px-3 py-1 text-xs font-bold uppercase text-ibc-blue"
+        >
+          {adding ? "Cancel" : "+ Add"}
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-ibc-ink/50">
+        Only used for the newsletter, and only for players under 18.
+      </p>
+
+      {adding && (
+        <form onSubmit={add} className="mt-3 grid grid-cols-2 gap-2">
+          <input
+            placeholder="Full name"
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            className="input"
+          />
+          <select
+            value={draft.relation}
+            onChange={(e) => setDraft({ ...draft, relation: e.target.value })}
+            className="input"
+          >
+            <option value="mother">Mother</option>
+            <option value="father">Father</option>
+            <option value="guardian">Guardian</option>
+          </select>
+          <input
+            placeholder="Email"
+            value={draft.email}
+            onChange={(e) => setDraft({ ...draft, email: e.target.value })}
+            className="input"
+          />
+          <input
+            placeholder="Phone"
+            value={draft.phone}
+            onChange={(e) => setDraft({ ...draft, phone: e.target.value })}
+            className="input"
+          />
+          <button className="col-span-2 rounded-full bg-ibc-blue px-4 py-2 text-xs font-bold uppercase text-white">
+            Save guardian
+          </button>
+        </form>
+      )}
+
+      {rows.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {rows.map((g) => (
+            <li key={g.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm">
+              <span className="font-bold text-ibc-ink">{g.name}</span>
+              <span className="text-xs uppercase text-ibc-ink/40">{g.relation}</span>
+              <span className="text-ibc-ink/70">{g.email || "no email"}</span>
+              {g.phone && <span className="text-ibc-ink/50">{g.phone}</span>}
+              <label className="ml-auto flex items-center gap-1 text-xs text-ibc-ink/60">
+                <input
+                  type="checkbox"
+                  checked={!!g.receives_newsletter}
+                  onChange={(e) => patch(g.id, { receives_newsletter: e.target.checked })}
+                />
+                newsletter
+              </label>
+              <button
+                type="button"
+                onClick={() => remove(g.id)}
+                className="rounded px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50"
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

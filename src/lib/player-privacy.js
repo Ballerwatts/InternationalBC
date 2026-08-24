@@ -12,11 +12,14 @@ export const PRIVATE_PLAYER_FIELDS = [
   "phone",
   "license_number",
   "custom_due_amount",
+  // A minor's date of birth has no business on a public roster; it is only
+  // here so the newsletter knows whether a guardian may be mailed.
+  "birth_date",
 ];
 
 /** Returns a copy of a player row with the private columns removed. */
-export function stripPrivatePlayerFields(player) {
-  if (!player) return player;
+export function stripPrivatePlayerFields(player, canSeeContact = false) {
+  if (!player || canSeeContact) return player;
   const out = { ...player };
   for (const f of PRIVATE_PLAYER_FIELDS) delete out[f];
   return out;

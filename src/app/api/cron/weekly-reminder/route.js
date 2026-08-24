@@ -67,6 +67,7 @@ async function handle(request) {
           subject: `International Basketball — Semaine du ${formatFr(monday)}`,
           html,
           attachments: ics ? [{ filename: "semaine-ibc.ics", content: ics }] : undefined,
+          category: "weekly_reminder",
         });
         sentEmail++;
       } catch (e) {

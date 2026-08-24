@@ -183,6 +183,87 @@ of any squad".**
 
 ---
 
+## 5. Newsletter & the email log
+
+A weekly HTML email, **segmented by squad**, assembled automatically as a
+draft that an admin reviews and sends. Two admin screens, both Marketing:
+`/admin/newsletter` and `/admin/emails`.
+
+Modules, split the usual way — pure ones can be imported by a client
+component, server ones cannot:
+
+```
+src/lib/email-template.js     PURE. renderNewsletter() -> { html, text }
+src/lib/unsubscribe.js        PURE-ish (node:crypto only). HMAC tokens
+src/lib/newsletter-audience.js  server. resolveRecipients()
+src/lib/newsletter-build.js     server. buildBlocks() — the auto-draft
+src/lib/newsletter-send.js      server. freeze + batch send
+src/lib/email.js                server. now logs every send, adds sendBatch()
+```
+
+**The preview and the sender are the same function.** `/admin/newsletter/[id]`
+renders its preview by POSTing the unsaved draft to
+`/api/newsletters/[id]/preview`, which calls `renderFor()` — exactly what
+`sendNewsletter()` calls. There is deliberately no client-side renderer to
+drift out of sync. If you are tempted to render the preview in the browser
+to save a round trip: that is how the preview starts lying.
+
+### Two contracts worth not breaking
+
+**`newsletter_recipients` is frozen at send time, not re-resolved.** Resolve
+the audience twice a week apart and you get different answers, so the
+delivery log would stop describing what actually happened. A send writes the
+list first, then works through it, and **re-running a send only picks up rows
+still `queued` or `failed`**. That is why "Retry failed" and "Send" are the
+same endpoint, and why a crash mid-send cannot double-mail anyone. Do not
+"optimise" this into a live query.
+
+**Guardians are gated on being a minor, twice over.** `players.birth_date`
+is the real answer; when it is blank we fall back to "is this a youth
+squad". Erring towards *not* mailing is deliberate — a missed newsletter
+beats mailing a stranger about an adult. A guardian only ever receives their
+own child's squad's issue.
+
+### Segmentation is the acceptance criterion
+
+`tests/newsletter-segmentation.test.js` (run `npm test`, no framework —
+`node --test` plus a 12-line alias loader in `tests/register-alias.mjs`)
+asserts that a squad-A issue contains zero squad-B rows: no scores, no
+fixtures, no announcements, no player of the week, no addresses. Every query
+in `newsletter-build.js` takes the same `teamId`; if you add a block, filter
+it the same way and extend that test. Club-wide announcements
+(`announcements.team_id IS NULL`) reach every squad on purpose.
+
+### Things that will bite
+
+- **Email HTML is 2004 HTML.** Tables, inline CSS, 600px, explicit `bgcolor`
+  on every wrapper. No flexbox, no grid, no web fonts, no `<style>` beyond
+  one `@media` block. Gmail strips `data:` URIs, so a sponsor logo or player
+  photo stored as base64 is dropped from the email rather than shipped
+  broken — the crest comes from `/logo.png` via `SITE_URL`.
+- **`SITE_URL` must be set in production.** Without it every image and link
+  falls back to the fly.dev default.
+- **A newsletter with no text part goes to spam.** `renderNewsletter()`
+  always returns both; pass `text:` through.
+- **Never render `SMTP_PASS`**, not even masked — `smtpStatus()` reports
+  presence only.
+- The weekly cron **builds drafts and stops**. Keep it that way.
+
+### Schema added (auto-applied on boot)
+
+`newsletters`, `newsletter_recipients`, `player_guardians`, `email_log`,
+`email_optouts`, plus `players.birth_date` and `announcements.team_id`
+(NULL = club-wide; without it club news cannot be targeted).
+
+### Fixed in passing
+
+`GET /api/players/[id]` had no auth check at all and returned `SELECT *`
+plus the player's full payment history to anyone who asked. It now applies
+the same rule as the roster list: contact details, licence number, date of
+birth and payments are for logged-in members. `birth_date` was added to
+`PRIVATE_PLAYER_FIELDS` at the same time — a minor's date of birth has no
+business on a public roster.
+
 ## Gotchas worth knowing before you touch anything
 
 **The id-mismatch class of bug.** `practice_rsvp.user_id` is a **LOGIN** id.

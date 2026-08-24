@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
 import { get, query, run } from "@/lib/db";
 import { requireArea } from "@/lib/access";
+import { isAuthenticated } from "@/lib/auth";
+import { stripPrivatePlayerFields } from "@/lib/player-privacy";
 
 export const dynamic = "force-dynamic";
 
+// Public (a player's profile page is public), but contact details, licence
+// number, date of birth and the payment history are for logged-in members
+// only — same rule as the roster list in ../route.js.
 export async function GET(request, { params }) {
   const player = get("SELECT * FROM players WHERE id = ?", [params.id]);
   if (!player) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const payments = query(
-    "SELECT * FROM payments WHERE player_id = ? ORDER BY paid_on DESC, id DESC",
-    [params.id]
-  );
+  const canSeeContact = await isAuthenticated();
+  const payments = canSeeContact
+    ? query("SELECT * FROM payments WHERE player_id = ? ORDER BY paid_on DESC, id DESC", [params.id])
+    : [];
 
-  return NextResponse.json({ ...player, payments });
+  return NextResponse.json({ ...stripPrivatePlayerFields(player, canSeeContact), payments });
 }
 
 const FIELDS = [
@@ -33,6 +38,7 @@ const FIELDS = [
   "team_id",
   "bio",
   "nationality",
+  "birth_date",
   "custom_due_amount",
 ];
 

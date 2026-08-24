@@ -72,6 +72,7 @@ export async function POST(request, { params }) {
              <p>Connectez-vous sur le site du club (page « Connexion équipe ») pour accéder à
              l'espace équipe.</p>`,
       text: `Identifiants : ${reqRow.email} / ${tempPassword}`,
+      category: "access_request",
     });
     emailed = true;
   } catch {
