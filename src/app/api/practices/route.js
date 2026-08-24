@@ -2,15 +2,21 @@ import { NextResponse } from "next/server";
 import { query, run } from "@/lib/db";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
+import { applyAbsencesToPractice } from "@/lib/absences";
 
 export const dynamic = "force-dynamic";
 
 // The calendar stays public (all squads) — only tactics and the practice
 // board are hidden from visitors. Pass ?team_id= to scope to one squad.
+// Pass ?include_club=1 alongside team_id to also include club-wide events
+// (team_id IS NULL) — used by the logged-in player calendar, which should
+// show the player's own team's events plus anything scheduled for the
+// whole club.
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
   const teamId = searchParams.get("team_id");
+  const includeClub = searchParams.get("include_club");
 
   const clauses = [];
   const params = [];
@@ -19,7 +25,11 @@ export async function GET(request) {
     params.push(from);
   }
   if (teamId) {
-    clauses.push("team_id = ?");
+    if (includeClub) {
+      clauses.push("(team_id = ? OR team_id IS NULL)");
+    } else {
+      clauses.push("team_id = ?");
+    }
     params.push(Number(teamId));
   }
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
@@ -65,6 +75,10 @@ export async function POST(request) {
     ]
   );
 
+  // A session added inside a window someone already declared should show
+  // them absent straight away, not as unanswered.
+  applyAbsencesToPractice(lastInsertRowid);
+
   return NextResponse.json({ ok: true, id: lastInsertRowid });
 }
 
@@ -87,7 +101,13 @@ function generateWeeks({ weeks = 12, location_name, location_address, teamId }) 
     if (day === 1 || day === 4) {
       const iso = d.toISOString().slice(0, 10);
       if (!existing.has(iso)) {
-        run(insert, [iso, location_name || null, location_address || null, teamId]);
+        const { lastInsertRowid } = run(insert, [
+          iso,
+          location_name || null,
+          location_address || null,
+          teamId,
+        ]);
+        applyAbsencesToPractice(lastInsertRowid);
         createdCount++;
       }
     }

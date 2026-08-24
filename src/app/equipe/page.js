@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { query } from "@/lib/db";
+import { isAuthenticated } from "@/lib/auth";
+import { sanitizePlayers } from "@/lib/player-privacy";
 import TeamAccordion from "@/components/TeamAccordion";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Teams — International Basketball Club Geneva (IBBC)" };
 
-export default function TeamPage() {
+export default async function TeamPage() {
   const teams = query("SELECT * FROM teams ORDER BY sort_order ASC, name ASC");
-  const players = query(
-    "SELECT * FROM players WHERE active = 1 ORDER BY sort_order ASC, last_name ASC"
+  // Rosters render in a client accordion — strip contact details unless the
+  // visitor is a logged-in member.
+  const canSeeContact = await isAuthenticated();
+  const players = sanitizePlayers(
+    query("SELECT * FROM players WHERE active = 1 ORDER BY sort_order ASC, last_name ASC"),
+    canSeeContact
   );
   const unassigned = players.filter((p) => !p.team_id);
 

@@ -60,3 +60,28 @@ h1, h2, h3, h4, .font-display {
   background: var(--ibc-accent);
   color: #ffffff;
 }
+
+/* Admin form control.
+   `className="input"` is used throughout /admin, but the class was never
+   actually defined — and Tailwind's preflight resets the browser's default
+   border on <input>/<select>/<textarea>, so those fields rendered as bare
+   text with no visible box. This defines it once, in the club's colours. */
+.input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(20, 23, 63, 0.15);
+  background: #ffffff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ibc-ink);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--ibc-accent);
+  box-shadow: 0 0 0 3px rgba(76, 86, 214, 0.18);
+}
+
+.input::placeholder {
+  color: rgba(20, 23, 63, 0.4);
+}

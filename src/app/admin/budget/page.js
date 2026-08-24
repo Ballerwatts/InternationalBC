@@ -48,6 +48,8 @@ export default function BudgetAdminPage() {
   const [editingPaymentForm, setEditingPaymentForm] = useState(null);
   const [showDues, setShowDues] = useState(false);
   const [licenseBusyId, setLicenseBusyId] = useState(null);
+  // "" = everyone · "unpaid" = still owes money · "license_unpaid" = licence not paid
+  const [dueFilter, setDueFilter] = useState("");
 
   function refreshEntries() {
     fetch("/api/budget/entries").then((r) => r.json()).then(setEntries);
@@ -186,9 +188,35 @@ export default function BudgetAdminPage() {
 
   const duePlayers = useMemo(() => {
     if (!summary) return [];
-    if (!teamFilter) return summary.players;
-    return summary.players.filter((p) => String(p.team_id || "") === teamFilter);
-  }, [summary, teamFilter]);
+    let rows = summary.players;
+    if (teamFilter) rows = rows.filter((p) => String(p.team_id || "") === teamFilter);
+    // "Unpaid" chip: narrow the table to whoever still owes money, and to
+    // whoever hasn't paid their licence, respectively.
+    if (dueFilter === "unpaid") rows = rows.filter((p) => p.balance > 0);
+    if (dueFilter === "license_unpaid") rows = rows.filter((p) => !p.licensePaid);
+    return rows;
+  }, [summary, teamFilter, dueFilter]);
+
+  // Totals for exactly what the table is currently showing, so filtering by
+  // team or by "unpaid" gives the amount owed by that subset — not the club
+  // total. Recomputed from the rows, so it follows every paid/unpaid click.
+  const shownTotals = useMemo(
+    () =>
+      duePlayers.reduce(
+        (acc, p) => {
+          acc.due += p.totalDue;
+          acc.paid += p.totalPaid;
+          if (p.balance > 0) {
+            acc.outstanding += p.balance;
+            acc.unpaidPlayers += 1;
+          }
+          if (!p.licensePaid) acc.licenseOutstanding += p.licenseDue || 0;
+          return acc;
+        },
+        { due: 0, paid: 0, outstanding: 0, unpaidPlayers: 0, licenseOutstanding: 0 }
+      ),
+    [duePlayers]
+  );
 
   if (!settings || !summary) return <p className="text-ibc-ink/60">Loading…</p>;
 
@@ -425,6 +453,20 @@ export default function BudgetAdminPage() {
             </button>
           </form>
 
+          {summary.clubTotals && (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <SummaryCard label="Dues expected" value={summary.clubTotals.expected} tone="neutral" />
+              <SummaryCard label="Dues collected" value={summary.clubTotals.collected} tone="green" />
+              <SummaryCard
+                label={`Still owed — ${summary.clubTotals.unpaidPlayers} player${
+                  summary.clubTotals.unpaidPlayers === 1 ? "" : "s"
+                }`}
+                value={summary.clubTotals.outstanding}
+                tone={summary.clubTotals.outstanding > 0 ? "red" : "green"}
+              />
+            </div>
+          )}
+
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <label className="text-xs font-bold uppercase text-ibc-blue/70">Team</label>
@@ -438,16 +480,58 @@ export default function BudgetAdminPage() {
               </select>
             </div>
             {summary.licenseTotals && (
-              <div className="flex flex-wrap gap-3 text-xs font-semibold">
-                <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
-                  {summary.licenseTotals.paidCount} paid — {summary.licenseTotals.paidAmount} CHF
-                </span>
-                <span className="rounded-full bg-red-100 px-3 py-1 text-red-700">
-                  {summary.licenseTotals.unpaidCount} unpaid — {summary.licenseTotals.unpaidAmount} CHF
-                </span>
+              <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                <FilterChip
+                  active={dueFilter === ""}
+                  onClick={() => setDueFilter("")}
+                  className="bg-black/5 text-ibc-ink/70"
+                >
+                  All players
+                </FilterChip>
+                <FilterChip
+                  active={dueFilter === "unpaid"}
+                  onClick={() => setDueFilter(dueFilter === "unpaid" ? "" : "unpaid")}
+                  className="bg-red-100 text-red-700"
+                >
+                  {summary.clubTotals?.unpaidPlayers ?? 0} still owe —{" "}
+                  {summary.clubTotals?.outstanding ?? 0} CHF
+                </FilterChip>
+                <FilterChip
+                  active={dueFilter === "license_unpaid"}
+                  onClick={() =>
+                    setDueFilter(dueFilter === "license_unpaid" ? "" : "license_unpaid")
+                  }
+                  className="bg-amber-100 text-amber-800"
+                >
+                  Licence unpaid: {summary.licenseTotals.unpaidCount} —{" "}
+                  {summary.licenseTotals.unpaidAmount} CHF
+                </FilterChip>
+                <FilterChip
+                  active={false}
+                  onClick={() => setDueFilter("")}
+                  className="bg-green-100 text-green-700"
+                >
+                  Licence paid: {summary.licenseTotals.paidCount} —{" "}
+                  {summary.licenseTotals.paidAmount} CHF
+                </FilterChip>
               </div>
             )}
           </div>
+
+          {dueFilter && (
+            <p className="mt-2 text-xs text-ibc-ink/60">
+              Showing {duePlayers.length} player{duePlayers.length === 1 ? "" : "s"} ·{" "}
+              <strong className="text-red-700">{shownTotals.outstanding} CHF</strong> still owed
+              in this selection.{" "}
+              <button
+                type="button"
+                onClick={() => setDueFilter("")}
+                className="font-bold uppercase text-ibc-blue hover:underline"
+              >
+                clear filter
+              </button>
+            </p>
+          )}
 
           <div className="mt-3 rounded-xl border border-black/5 bg-white shadow-sm">
             <table className="w-full text-sm">
@@ -637,20 +721,17 @@ export default function BudgetAdminPage() {
                   </Fragment>
                 ))}
               </tbody>
-              {summary.licenseTotals && (
-                <tfoot>
-                  <tr className="border-t-2 border-black/10 bg-ibc-blue/5 font-bold">
-                    <td className="px-4 py-2" colSpan={4}>
-                      Total license fees
-                    </td>
-                    <td className="px-4 py-2" colSpan={2}>
-                      <span className="text-green-700">{summary.licenseTotals.paidAmount} CHF paid</span>
-                      {" · "}
-                      <span className="text-red-700">{summary.licenseTotals.unpaidAmount} CHF unpaid</span>
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
+              <tfoot>
+                <tr className="border-t-2 border-black/10 bg-ibc-blue/5 font-bold">
+                  <td className="px-4 py-2">Totals shown</td>
+                  <td className="px-4 py-2">{shownTotals.paid} CHF</td>
+                  <td className="px-4 py-2">{shownTotals.due} CHF</td>
+                  <td className="px-4 py-2 text-red-700">{shownTotals.outstanding} CHF due</td>
+                  <td className="px-4 py-2 text-amber-800" colSpan={2}>
+                    {shownTotals.licenseOutstanding} CHF licence
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -668,8 +749,23 @@ export default function BudgetAdminPage() {
   );
 }
 
+function FilterChip({ active, onClick, className, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full px-3 py-1 transition hover:brightness-95 ${className} ${
+        active ? "ring-2 ring-ibc-blue ring-offset-1" : ""
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function SummaryCard({ label, value, tone }) {
-  const toneClass = tone === "green" ? "text-green-700" : "text-red-700";
+  const toneClass =
+    tone === "green" ? "text-green-700" : tone === "neutral" ? "text-ibc-blue" : "text-red-700";
   return (
     <div className="rounded-xl border border-black/5 bg-white p-4 text-center shadow-sm">
       <p className={`font-display text-2xl font-extrabold ${toneClass}`}>{value.toLocaleString("fr-CH")} CHF</p>

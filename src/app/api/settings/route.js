@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAllSettings, setSetting } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export async function GET() {
 }
 
 export async function PUT(request) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("marketing", "finance");
   if (unauthorized) return unauthorized;
 
   const body = await request.json();

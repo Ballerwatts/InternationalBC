@@ -10,6 +10,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import { SEED_HOLIDAYS } from "@/lib/holidays";
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "ibc.db");
 
@@ -115,8 +116,29 @@ function migrate(db) {
       location_address TEXT,
       opponent TEXT,
       notes TEXT,
+      -- Filled in after a game: our score, theirs, and a short recap the
+      -- coach writes for the public calendar. NULL = not played / no result.
+      score_us INTEGER,
+      score_them INTEGER,
+      recap TEXT,
       team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Points scored by each player in one game. This is the source of truth
+    -- for a player's season totals: as soon as a player has any row here,
+    -- their games/points/PPG are computed from these rows rather than the
+    -- hand-typed players.games_played / total_points / ppg columns (which
+    -- stay as the pre-existing historical figures for anyone with no
+    -- recorded games yet). See src/lib/stats.js.
+    CREATE TABLE IF NOT EXISTS game_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      practice_id INTEGER NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+      points INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(practice_id, player_id)
     );
 
     CREATE TABLE IF NOT EXISTS practice_board (
@@ -189,6 +211,10 @@ function migrate(db) {
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       status TEXT NOT NULL DEFAULT 'in', -- 'in' | 'out'
       note TEXT,
+      -- NULL when the player marked themselves; otherwise the id of the
+      -- coach/admin who marked it on their behalf. Either way the mark
+      -- counts towards the player's season attendance total.
+      marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(practice_id, user_id)
@@ -228,6 +254,19 @@ function migrate(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- Geneva school holidays / public holidays. The club practises in a
+    -- school gym, so these decide when the hall is shut. Seeded from the
+    -- cantonal calendar (see src/lib/holidays.js) and editable from
+    -- /admin/schedule, so next season's dates need no code change.
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL, -- 'YYYY-MM-DD', inclusive
+      end_date TEXT NOT NULL,   -- 'YYYY-MM-DD', inclusive
+      kind TEXT NOT NULL DEFAULT 'vacances', -- 'vacances' | 'ferie'
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     -- Club-level income/expense ledger ("in's and out's") — distinct from
     -- the per-player payments table (which tracks what each player owes
     -- the club). This is the whole-club cash book: sponsor income, other
@@ -239,6 +278,17 @@ function migrate(db) {
       description TEXT,
       amount REAL NOT NULL,
       entry_date TEXT NOT NULL, -- 'YYYY-MM-DD'
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Instagram posts hand-picked for the public gallery. We store only the
+    -- permalink and let Instagram's own embed script render it, so there is
+    -- no Meta app, no access token and nothing to refresh every 60 days.
+    CREATE TABLE IF NOT EXISTS instagram_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_url TEXT NOT NULL,
+      caption TEXT,
+      sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
@@ -263,6 +313,24 @@ function migrate(db) {
   addColumnIfMissing(db, "teams", "practice_location_address", "TEXT");
   addColumnIfMissing(db, "sponsors", "tier", "TEXT NOT NULL DEFAULT 'standard'");
   addColumnIfMissing(db, "announcements", "image_data_url", "TEXT");
+  // Set when a coach/admin marked the attendance instead of the player
+  // themselves — the mark still counts, it's just attributed.
+  addColumnIfMissing(db, "practice_rsvp", "marked_by", "INTEGER REFERENCES users(id) ON DELETE SET NULL");
+  addColumnIfMissing(db, "practices", "score_us", "INTEGER");
+  addColumnIfMissing(db, "practices", "score_them", "INTEGER");
+  addColumnIfMissing(db, "practices", "recap", "TEXT");
+  // Comma-separated list of grouped admin sections a non-super-admin
+  // account may open ("marketing,finance"). NULL/empty = no admin access.
+  addColumnIfMissing(db, "users", "admin_areas", "TEXT");
+  // Set when this presence mark was written by a declared multi-day absence
+  // rather than clicked by hand — see src/lib/absences.js. NULL means a
+  // human set it, and cleanup must never touch it.
+  addColumnIfMissing(
+    db,
+    "practice_rsvp",
+    "availability_id",
+    "INTEGER REFERENCES availability(id) ON DELETE SET NULL"
+  );
 
   migrateTeamNames(db);
   migrateEnglishDefaults(db);
@@ -364,6 +432,15 @@ const DEFAULT_SETTINGS = {
   budget_referee: "800",
   practice_location_name: "École de commerce Raymond-Uldry",
   practice_location_address: "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
+  gym_access_notes: "",
+  gym_photo_data_url: "",
+  gym_maps_url: "",
+  social_instagram_url: "",
+  social_facebook_url: "",
+  social_youtube_url: "",
+  social_tiktok_url: "",
+  instagram_gallery_title: "Follow us on Instagram",
+  instagram_gallery_enabled: "1",
   highlight_title: "Highlight of the week",
   highlight_body: "",
 };
@@ -439,6 +516,15 @@ function seed(db) {
     SEED_PLAYERS.forEach((p, i) => {
       insert.run(p.first_name, p.last_name, p.games_played, p.total_points, p.ppg, i, primaryTeamId);
     });
+  }
+
+  // Geneva school calendar — seeded once; an admin owns it from then on.
+  const holidayCount = db.prepare("SELECT COUNT(*) as c FROM holidays").get();
+  if (holidayCount.c === 0) {
+    const insert = db.prepare(
+      "INSERT INTO holidays (name, start_date, end_date, kind) VALUES (?, ?, ?, ?)"
+    );
+    for (const h of SEED_HOLIDAYS) insert.run(h.name, h.start_date, h.end_date, h.kind);
   }
 
   const announcementCount = db.prepare("SELECT COUNT(*) as c FROM announcements").get();
@@ -517,7 +603,11 @@ export function getAllSettings() {
   const rows = query("SELECT key, value FROM settings");
   const out = {};
   for (const r of rows) out[r.key] = r.value;
-  return out;
+  // Merge over the defaults so a key added in a later release still reads
+  // back as "" instead of undefined on a database that was seeded before it
+  // existed (seed() only fills an empty settings table). Stored rows always
+  // win, so nothing an admin has typed is ever overwritten here.
+  return { ...DEFAULT_SETTINGS, ...out };
 }
 
 export function setSetting(key, value) {

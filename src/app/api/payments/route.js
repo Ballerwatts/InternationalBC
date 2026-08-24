@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("finance");
   if (unauthorized) return unauthorized;
 
   const { player_id, season, category, amount, paid_on, note } = await request.json();

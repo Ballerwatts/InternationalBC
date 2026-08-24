@@ -1,18 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
+// Season planning, from the team's side. Everyone on the squad gets the
+// same five entries — availability, the schedule, the playbook, the weekly
+// board and the register — because a player who can't see the plan can't
+// follow it. What differs is editing, not visibility: each page decides
+// that from the account's role, and every write is refused server-side for
+// a player regardless of what the UI shows.
 const ITEMS = [
-  { href: "/team/tactiques", label: "Tactiques" },
-  { href: "/team/practice-board", label: "Tableau d'entraînement" },
-  { href: "/team/presences", label: "Présences" },
-  { href: "/team/disponibilites", label: "Mes disponibilités" },
+  { href: "/team/availability", label: "Availability" },
+  { href: "/team/calendar", label: "Team calendar" },
+  { href: "/team/tactiques", label: "Tactics" },
+  { href: "/team/practice-board", label: "Practice board" },
+  { href: "/team/appel", label: "Match register" },
 ];
 
-export default function TeamNav({ isAdmin }) {
+export default function TeamNav({ isAdmin, isStaff }) {
   const pathname = usePathname();
-  const router = useRouter();
 
   async function logout() {
     try {
@@ -30,7 +36,10 @@ export default function TeamNav({ isAdmin }) {
 
   return (
     <nav className="w-full shrink-0 lg:w-56">
-      <p className="font-display text-xl font-extrabold uppercase text-ibc-blue">Espace équipe</p>
+      <p className="font-display text-xl font-extrabold uppercase text-ibc-blue">Season planning</p>
+      <p className="mt-0.5 text-xs text-ibc-ink/50">
+        {isStaff ? "Vous pouvez modifier" : "Lecture seule"}
+      </p>
       <ul className="mt-4 space-y-1">
         {ITEMS.map((item) => (
           <li key={item.href}>
@@ -47,14 +56,16 @@ export default function TeamNav({ isAdmin }) {
           </li>
         ))}
       </ul>
+
       {isAdmin && (
         <Link
           href="/admin"
           className="mt-4 block rounded-lg border border-ibc-blue/20 px-3 py-2 text-center text-xs font-bold uppercase text-ibc-blue hover:bg-ibc-blue/10"
         >
-          ← Espace admin
+          ← Admin
         </Link>
       )}
+
       <button
         type="button"
         onClick={logout}

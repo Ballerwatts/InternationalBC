@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAllSettings, query } from "@/lib/db";
 import PracticeMap from "@/components/PracticeMap";
 import HeroSlider from "@/components/HeroSlider";
+import InstagramGallery from "@/components/InstagramGallery";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,10 @@ export default function HomePage() {
   const upcoming = nextPractices(4);
   const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC");
   const heroPhotos = query("SELECT * FROM hero_photos ORDER BY sort_order ASC, id ASC");
+  const instagramPosts =
+    settings.instagram_gallery_enabled === "0"
+      ? []
+      : query("SELECT * FROM instagram_posts ORDER BY sort_order ASC, id DESC");
 
   const latestAnnouncement = announcements[0] || null;
 
@@ -130,7 +135,15 @@ export default function HomePage() {
             <p className="mt-2 text-sm text-ibc-ink/70">
               {settings.practice_location_name} — {settings.practice_location_address}
             </p>
-            <PracticeMap address={settings.practice_location_address} />
+            {settings.gym_access_notes && (
+              <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/60">
+                {settings.gym_access_notes}
+              </p>
+            )}
+            <PracticeMap
+              address={settings.practice_location_address}
+              mapsUrl={settings.gym_maps_url}
+            />
           </div>
         </div>
       </section>
@@ -209,6 +222,11 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* INSTAGRAM — hand-picked posts, rendered by Instagram's own embed
+          script (see components/InstagramGallery.js). Renders nothing when
+          the gallery is empty or switched off in the admin. */}
+      <InstagramGallery posts={instagramPosts} title={settings.instagram_gallery_title} />
     </div>
   );
 }

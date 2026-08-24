@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("marketing");
   if (unauthorized) return unauthorized;
 
   const { title, body, published, image_data_url } = await request.json();
@@ -18,7 +18,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("marketing");
   if (unauthorized) return unauthorized;
 
   run("DELETE FROM announcements WHERE id = ?", [params.id]);

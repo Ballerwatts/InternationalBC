@@ -17,8 +17,9 @@ async function currentUser() {
 }
 
 // Admins see every RSVP (joined with the player's name) for a headcount
-// view; players only ever see their own — enforced here, not just hidden
-// in the UI.
+// view; coaches see every RSVP for their own team's roster, so they can
+// tag presence on a player's behalf; players only ever see their own —
+// enforced here, not just hidden in the UI.
 export async function GET() {
   const unauthorized = await requireUser();
   if (unauthorized) return unauthorized;
@@ -37,10 +38,45 @@ export async function GET() {
     );
   }
 
+  if (user.role === "coach") {
+    return NextResponse.json(
+      query(
+        `SELECT r.*, u.name as user_name, u.player_id
+         FROM practice_rsvp r
+         JOIN users u ON u.id = r.user_id
+         WHERE u.team_id IS ?
+         ORDER BY r.practice_id ASC`,
+        [user.team_id ?? null]
+      )
+    );
+  }
+
+  // A player reads their own squad's marks — that is the locker-room
+  // whiteboard, and it is what makes the register and the headcounts
+  // readable for them. `note` and `marked_by` are deliberately NOT
+  // selected: the reason someone is away (injury, travel) stays between
+  // that player and the staff.
+  if (user.team_id) {
+    return NextResponse.json(
+      query(
+        `SELECT r.id, r.practice_id, r.user_id, r.status, r.availability_id, r.updated_at,
+                u.name as user_name, u.player_id
+         FROM practice_rsvp r
+         JOIN users u ON u.id = r.user_id
+         WHERE u.team_id IS ?
+         ORDER BY r.practice_id ASC`,
+        [user.team_id]
+      )
+    );
+  }
+
   return NextResponse.json(query("SELECT * FROM practice_rsvp WHERE user_id = ?", [user.id]));
 }
 
-// Upsert the logged-in user's own RSVP for one practice.
+// Upsert a RSVP for one practice. By default this is the logged-in user's
+// own mark; admins can pass user_id to tag any player, coaches can pass
+// user_id to tag any player on their own team (enforced server-side, not
+// just hidden in the UI).
 export async function POST(request) {
   const unauthorized = await requireUser();
   if (unauthorized) return unauthorized;
@@ -48,18 +84,65 @@ export async function POST(request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { practice_id, status, note } = await request.json();
+  const { practice_id, status, note, user_id } = await request.json();
   if (!practice_id || !["in", "out"].includes(status)) {
     return NextResponse.json({ error: "practice_id et status ('in'|'out') requis" }, { status: 400 });
   }
 
+  const targetUserId = await resolveTargetUserId(user, user_id);
+  if (targetUserId instanceof NextResponse) return targetUserId;
+
+  // availability_id is set to NULL on purpose: this mark was clicked by a
+  // human, so deleting a declared absence must never withdraw it again.
+  // See src/lib/absences.js for the two-state contract.
   run(
-    `INSERT INTO practice_rsvp (practice_id, user_id, status, note, updated_at)
-     VALUES (?, ?, ?, ?, datetime('now'))
+    `INSERT INTO practice_rsvp (practice_id, user_id, status, note, availability_id, updated_at)
+     VALUES (?, ?, ?, ?, NULL, datetime('now'))
      ON CONFLICT(practice_id, user_id) DO UPDATE SET
-       status = excluded.status, note = excluded.note, updated_at = datetime('now')`,
-    [practice_id, user.id, status, note || null]
+       status = excluded.status,
+       note = excluded.note,
+       availability_id = NULL,
+       updated_at = datetime('now')`,
+    [practice_id, targetUserId, status, note || null]
   );
 
   return NextResponse.json({ ok: true });
+}
+
+// Clear a mark back to "no response" — same authorization rules as POST.
+export async function DELETE(request) {
+  const unauthorized = await requireUser();
+  if (unauthorized) return unauthorized;
+
+  const user = await currentUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const { practice_id, user_id } = await request.json();
+  if (!practice_id) {
+    return NextResponse.json({ error: "practice_id requis" }, { status: 400 });
+  }
+
+  const targetUserId = await resolveTargetUserId(user, user_id);
+  if (targetUserId instanceof NextResponse) return targetUserId;
+
+  run("DELETE FROM practice_rsvp WHERE practice_id = ? AND user_id = ?", [practice_id, targetUserId]);
+  return NextResponse.json({ ok: true });
+}
+
+// Admin may target anyone; coach may only target a player on their own
+// team; anyone else may only ever target themselves.
+async function resolveTargetUserId(user, requestedUserId) {
+  if (!requestedUserId || requestedUserId === user.id) return user.id;
+
+  if (user.role === "admin") return requestedUserId;
+
+  if (user.role === "coach") {
+    const target = get("SELECT team_id FROM users WHERE id = ?", [requestedUserId]);
+    if (!target || target.team_id !== user.team_id) {
+      return NextResponse.json({ error: "ce joueur n'est pas dans votre équipe" }, { status: 401 });
+    }
+    return requestedUserId;
+  }
+
+  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }

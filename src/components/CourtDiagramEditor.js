@@ -1020,8 +1020,11 @@ export default function CourtDiagramEditor({
         </div>
       </div>
 
-      {!readOnly && (
-        <div className="w-full shrink-0 lg:w-72">
+      {/* Right-hand column. The save card is staff-only, but the saved-plays
+          list renders for everyone: a player opening the playbook must see
+          the plays, they just can't change them. */}
+      <div className="w-full shrink-0 lg:w-72">
+        {!readOnly && (
           <div className="rounded-xl border border-black/5 bg-white p-4 shadow-sm">
             <label className="block text-xs font-bold uppercase text-ibc-blue">Nom du schéma</label>
             <input
@@ -1049,10 +1052,13 @@ export default function CourtDiagramEditor({
               Enregistrer le schéma
             </button>
           </div>
+        )}
 
           {savedPlays.length > 0 && (
             <div className="mt-4 rounded-xl border border-black/5 bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase text-ibc-blue">Schémas enregistrés</p>
+              <p className="text-xs font-bold uppercase text-ibc-blue">
+                {readOnly ? "Schémas de l'équipe" : "Schémas enregistrés"}
+              </p>
               <ul className="mt-2 space-y-1">
                 {savedPlays.map((play) => (
                   <li key={play.id} className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm hover:bg-ibc-blue/5">
@@ -1089,16 +1095,21 @@ export default function CourtDiagramEditor({
                         {play.published ? "dépublier" : "publier"}
                       </button>
                     )}
-                    <button type="button" onClick={() => onDeletePlay?.(play.id)} className="ml-2 shrink-0 text-xs text-red-500 hover:underline">
-                      supprimer
-                    </button>
+                    {isStaff && (
+                      <button
+                        type="button"
+                        onClick={() => onDeletePlay?.(play.id)}
+                        className="ml-2 shrink-0 text-xs text-red-500 hover:underline"
+                      >
+                        supprimer
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

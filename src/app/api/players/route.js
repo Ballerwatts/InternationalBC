@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
 import { query, run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
+import { isAuthenticated } from "@/lib/auth";
+import { sanitizePlayers } from "@/lib/player-privacy";
 
 export const dynamic = "force-dynamic";
 
+// Public endpoint (the roster is public), but e-mail, phone, licence
+// number and the per-player due override are stripped for anyone who
+// isn't a logged-in member.
 export async function GET() {
+  const canSeeContact = await isAuthenticated();
   return NextResponse.json(
-    query("SELECT * FROM players ORDER BY sort_order ASC, last_name ASC")
+    sanitizePlayers(
+      query("SELECT * FROM players ORDER BY sort_order ASC, last_name ASC"),
+      canSeeContact
+    )
   );
 }
 
 export async function POST(request) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("organisation");
   if (unauthorized) return unauthorized;
 
   const p = await request.json();

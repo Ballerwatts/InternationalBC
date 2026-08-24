@@ -1,35 +1,84 @@
 import { query, getAllSettings } from "@/lib/db";
+import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
+import CalendarList from "@/components/CalendarList";
 import PracticeMap from "@/components/PracticeMap";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Calendrier — International Basketball Club Genève" };
+export const metadata = { title: "Calendrier — International Basketball Club Geneva" };
 
-function formatDate(dateStr) {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("fr-CH", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+// Builds the merged, date-ordered timeline (holiday bands + events) and
+// hands it to a client component that owns the filters. All the date maths
+// and database work stays here on the server.
+function buildTimeline({ events, holidays, holidayDays, anchorDate, isPast }) {
+  const bands = holidays.map((h) => ({
+    type: "holiday",
+    sortDate: h.start_date < anchorDate ? anchorDate : h.start_date,
+    sortTime: "00:00",
+    holiday: { ...h, range: formatHolidayRange(h) },
+  }));
+
+  const rows = events.map((e) => ({
+    type: "event",
+    sortDate: e.practice_date,
+    sortTime: e.start_time || "00:00",
+    event: e,
+    holidayName: holidayDays[e.practice_date]?.name || null,
+    isPast,
+  }));
+
+  return [...bands, ...rows].sort(
+    (a, b) => a.sortDate.localeCompare(b.sortDate) || a.sortTime.localeCompare(b.sortTime)
+  );
 }
 
 export default function CalendarPage() {
   const settings = getAllSettings();
   const today = new Date().toISOString().slice(0, 10);
-  const events = query(
+
+  const upcoming = query(
     "SELECT * FROM practices WHERE practice_date >= ? ORDER BY practice_date ASC, start_time ASC",
     [today]
   );
+  // Results: played games only, most recent first — nobody wants to scroll
+  // past 40 finished practices to find last weekend's score.
+  const results = query(
+    `SELECT * FROM practices
+     WHERE practice_date < ? AND kind = 'game' AND score_us IS NOT NULL
+     ORDER BY practice_date DESC, start_time DESC
+     LIMIT 20`,
+    [today]
+  );
+
+  const teams = query("SELECT id, name FROM teams");
+  const teamNameById = Object.fromEntries(teams.map((t) => [t.id, t.name]));
+
+  const holidays = query(
+    "SELECT * FROM holidays WHERE end_date >= ? ORDER BY start_date ASC",
+    [today]
+  );
+  const holidayDays = expandHolidayDays(query("SELECT * FROM holidays"));
+
+  const timeline = buildTimeline({
+    events: upcoming,
+    holidays,
+    holidayDays,
+    anchorDate: today,
+    isPast: false,
+  });
+  const resultsTimeline = buildTimeline({
+    events: results,
+    holidays: [],
+    holidayDays,
+    anchorDate: today,
+    isPast: true,
+  }).reverse();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-14">
       <header className="mb-8 text-center">
-        <h1 className="font-display text-4xl font-extrabold uppercase text-ibc-blue">
-          Calendrier
-        </h1>
+        <h1 className="font-display text-4xl font-extrabold uppercase text-ibc-blue">Calendrier</h1>
         <p className="mx-auto mt-2 max-w-xl text-sm text-ibc-ink/70">
-          Entraînements le lundi et le jeudi, 20h–22h, à l&apos;École de commerce
-          Raymond-Uldry. Un match par semaine en 2ème ligue cantonale.
+          Tous les entraînements, matches et événements du club, toutes équipes confondues.
         </p>
         <a
           href="/api/calendar.ics"
@@ -44,48 +93,18 @@ export default function CalendarPage() {
         </p>
       </header>
 
-      <ol className="space-y-3">
-        {events.map((e) => (
-          <li
-            key={e.id}
-            className="flex flex-col gap-2 rounded-xl border border-black/5 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-              <p className="font-display text-lg font-bold capitalize text-ibc-ink">
-                {formatDate(e.practice_date)}
-              </p>
-              <p className="text-sm text-ibc-ink/60">
-                {e.start_time}–{e.end_time} ·{" "}
-                <span
-                  className={
-                    e.kind === "game" ? "font-semibold text-ibc-accent-deep" : "text-ibc-ink/60"
-                  }
-                >
-                  {e.kind === "game" ? `Match${e.opponent ? " vs " + e.opponent : ""}` : "Entraînement"}
-                </span>
-              </p>
-              {e.location_name && (
-                <p className="text-xs text-ibc-ink/50">
-                  {e.location_name}
-                  {e.location_address ? ` — ${e.location_address}` : ""}
-                </p>
-              )}
-              {e.notes && <p className="mt-1 text-xs text-ibc-ink/60">{e.notes}</p>}
-            </div>
-            <a
-              href={`/api/calendar/${e.id}.ics`}
-              className="shrink-0 self-start rounded-full border-2 border-ibc-blue px-4 py-2 text-xs font-bold uppercase text-ibc-blue transition hover:bg-ibc-blue hover:text-white sm:self-center"
-            >
-              + Ajouter à l&apos;agenda
-            </a>
-          </li>
-        ))}
-        {events.length === 0 && (
-          <p className="text-center text-ibc-ink/60">Aucun événement à venir pour le moment.</p>
-        )}
-      </ol>
+      <CalendarList items={timeline} teamNameById={teamNameById} />
 
-      <div className="mt-12">
+      {resultsTimeline.length > 0 && (
+        <section className="mt-16">
+          <h2 className="mb-6 text-center font-display text-2xl font-extrabold uppercase text-ibc-blue">
+            Résultats
+          </h2>
+          <CalendarList items={resultsTimeline} teamNameById={teamNameById} showPast />
+        </section>
+      )}
+
+      <div className="mt-16">
         <h2 className="font-display text-xl font-bold uppercase text-ibc-blue">
           Lieu d&apos;entraînement
         </h2>

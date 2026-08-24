@@ -1,54 +1,16 @@
 import { NextResponse } from "next/server";
-import { query, getAllSettings } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
+import { getAllPlayerDues } from "@/lib/dues";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("finance");
   if (unauthorized) return unauthorized;
 
-  const settings = getAllSettings();
-  const players = query(
-    "SELECT id, first_name, last_name, jersey_number, active, custom_due_amount, team_id FROM players ORDER BY sort_order ASC, last_name ASC"
-  );
-  const paidRows = query(
-    `SELECT player_id, category, SUM(amount) as total FROM payments WHERE season = ? GROUP BY player_id, category`,
-    ["2026-2027"]
-  );
+  const { split, rows } = getAllPlayerDues();
 
-  const paidByPlayer = {};
-  for (const row of paidRows) {
-    paidByPlayer[row.player_id] = paidByPlayer[row.player_id] || {};
-    paidByPlayer[row.player_id][row.category] = row.total;
-  }
-
-  const due = {
-    gym: Number(settings.budget_gym) || 0,
-    license: Number(settings.budget_license) || 0,
-    referee: Number(settings.budget_referee) || 0,
-  };
-  const defaultTotalDue = due.gym + due.license + due.referee;
-
-  const rows = players.map((p) => {
-    const paid = paidByPlayer[p.id] || {};
-    const totalPaid = (paid.gym || 0) + (paid.license || 0) + (paid.referee || 0) + (paid.other || 0);
-    // A player's custom_due_amount overrides the default gym+license+referee
-    // split for their total due, if set from /admin/players or /admin/budget.
-    const totalDue = p.custom_due_amount != null ? Number(p.custom_due_amount) : defaultTotalDue;
-    // License is tracked separately so it can be flagged paid (green) /
-    // unpaid (red) in the admin UI, independent of the overall balance.
-    const licensePaid = (paid.license || 0) >= due.license && due.license > 0;
-    return {
-      ...p,
-      paid,
-      totalPaid,
-      totalDue,
-      balance: totalDue - totalPaid,
-      licensePaid,
-    };
-  });
-
+  // Licence-only tallies (the green/red toggle in the dues table).
   const licenseTotals = rows.reduce(
     (acc, p) => {
       const amount = p.paid.license || 0;
@@ -57,12 +19,36 @@ export async function GET() {
         acc.paidAmount += amount;
       } else {
         acc.unpaidCount += 1;
-        acc.unpaidAmount += due.license;
+        acc.unpaidAmount += split.license;
       }
       return acc;
     },
     { paidCount: 0, paidAmount: 0, unpaidCount: 0, unpaidAmount: 0 }
   );
 
-  return NextResponse.json({ due, totalDue: defaultTotalDue, players: rows, licenseTotals });
+  // Whole-of-club dues position: what has come in, what is still owed, and
+  // how many players are behind. `outstanding` only counts positive
+  // balances so an overpayment by one player can't mask another's debt.
+  const clubTotals = rows.reduce(
+    (acc, p) => {
+      acc.expected += p.totalDue;
+      acc.collected += p.totalPaid;
+      if (p.balance > 0) {
+        acc.outstanding += p.balance;
+        acc.unpaidPlayers += 1;
+      } else {
+        acc.settledPlayers += 1;
+      }
+      return acc;
+    },
+    { expected: 0, collected: 0, outstanding: 0, unpaidPlayers: 0, settledPlayers: 0 }
+  );
+
+  return NextResponse.json({
+    due: { gym: split.gym, license: split.license, referee: split.referee },
+    totalDue: split.defaultTotal,
+    players: rows,
+    licenseTotals,
+    clubTotals,
+  });
 }

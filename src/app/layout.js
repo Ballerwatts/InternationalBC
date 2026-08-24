@@ -9,6 +9,11 @@ import { LanguageProvider } from "@/components/LanguageProvider";
 // which matters on locked-down CI/build environments. Swap in next/font or
 // self-hosted font files any time; see README "Fonts" section.
 
+// The footer reads the club's social links out of `settings`, so the root
+// layout must not be statically generated at build time — otherwise a URL
+// pasted in the admin would only appear after the next deploy.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "International Basketball Club Geneva (IBBC)",
   description:

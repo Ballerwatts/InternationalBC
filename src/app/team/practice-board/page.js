@@ -12,16 +12,25 @@ function mondayOfCurrentWeek() {
 
 const EMPTY = { week_start_date: mondayOfCurrentWeek(), focus: "", drills: "", notes: "" };
 
-export default function PracticeBoardAdminPage() {
+export default function PracticeBoardPage() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
+  const [status, setStatus] = useState(null);
 
   function refresh() {
     fetch("/api/practice-board").then((r) => r.json()).then(setItems);
   }
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    refresh();
+    fetch("/api/auth/status").then((r) => r.json()).then(setStatus);
+  }, []);
+
+  // Players read the board — that's the point of it — but only staff write.
+  // The API already refuses their writes (requireStaff); this keeps the UI
+  // from offering buttons that would 401.
+  const readOnly = !(status?.role === "admin" || status?.role === "coach");
 
   async function submit(e) {
     e.preventDefault();
@@ -60,10 +69,12 @@ export default function PracticeBoardAdminPage() {
         Tableau d&apos;entraînement
       </h1>
       <p className="mt-1 text-sm text-ibc-ink/60">
-        Le focus et les exercices de chaque semaine — visibles par l&apos;équipe sur la page
-        publique, et repris automatiquement dans le rappel email du lundi.
+        {readOnly
+          ? "Le focus et les exercices de chaque semaine, publiés par l'entraîneur."
+          : "Le focus et les exercices de chaque semaine — visibles par l'équipe sur la page publique, et repris automatiquement dans le rappel email du lundi."}
       </p>
 
+      {!readOnly && (
       <form onSubmit={submit} className="mt-6 space-y-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm">
         <label className="block text-xs font-bold uppercase text-ibc-blue">
           Semaine du (lundi)
@@ -116,6 +127,7 @@ export default function PracticeBoardAdminPage() {
           )}
         </div>
       </form>
+      )}
 
       <ul className="mt-6 space-y-3">
         {items.map((e) => (
@@ -128,14 +140,16 @@ export default function PracticeBoardAdminPage() {
                 <p className="font-display text-lg font-bold text-ibc-ink">{e.focus}</p>
                 <p className="whitespace-pre-line text-sm text-ibc-ink/70">{e.drills}</p>
               </div>
-              <div className="flex shrink-0 gap-2 text-xs font-bold uppercase">
-                <button onClick={() => edit(e)} className="text-ibc-blue hover:underline">
-                  Modifier
-                </button>
-                <button onClick={() => remove(e.id)} className="text-red-500 hover:underline">
-                  Supprimer
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="flex shrink-0 gap-2 text-xs font-bold uppercase">
+                  <button onClick={() => edit(e)} className="text-ibc-blue hover:underline">
+                    Modifier
+                  </button>
+                  <button onClick={() => remove(e.id)} className="text-red-500 hover:underline">
+                    Supprimer
+                  </button>
+                </div>
+              )}
             </div>
           </li>
         ))}

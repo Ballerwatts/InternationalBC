@@ -1,5 +1,9 @@
-export default function PracticeMap({ address }) {
+export default function PracticeMap({ address, mapsUrl }) {
   const q = encodeURIComponent(address);
+  // A custom short link (maps.app.goo.gl/...) wins when one is set in
+  // Marketing → Gym; otherwise fall back to a plain search on the address.
+  const openUrl = (mapsUrl || "").trim() || `https://www.google.com/maps/search/?api=1&query=${q}`;
+
   return (
     <div className="mt-4 overflow-hidden rounded-xl border-4 border-ibc-accent shadow-md">
       <iframe
@@ -12,7 +16,7 @@ export default function PracticeMap({ address }) {
         referrerPolicy="no-referrer-when-downgrade"
       />
       <a
-        href={`https://www.google.com/maps/search/?api=1&query=${q}`}
+        href={openUrl}
         target="_blank"
         rel="noreferrer"
         className="block bg-ibc-blue px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-white hover:brightness-110"

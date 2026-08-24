@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query, get, run } from "@/lib/db";
 import { requireAdmin } from "@/lib/api-auth";
 import { hashPassword } from "@/lib/auth";
+import { serializeAreas } from "@/lib/admin-areas";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,8 @@ export async function GET() {
   if (unauthorized) return unauthorized;
 
   const users = query(`
-    SELECT u.id, u.name, u.email, u.role, u.active, u.player_id, u.team_id, u.created_at,
+    SELECT u.id, u.name, u.email, u.role, u.active, u.player_id, u.team_id,
+           u.admin_areas, u.created_at,
            p.first_name, p.last_name
     FROM users u
     LEFT JOIN players p ON p.id = u.player_id
@@ -23,7 +25,7 @@ export async function POST(request) {
   const unauthorized = await requireAdmin();
   if (unauthorized) return unauthorized;
 
-  const { name, email, password, role, player_id, team_id } = await request.json();
+  const { name, email, password, role, player_id, team_id, admin_areas } = await request.json();
   const cleanName = (name || "").trim();
   const cleanEmail = (email || "").trim().toLowerCase();
   const cleanRole = ["admin", "coach"].includes(role) ? role : "player";
@@ -48,8 +50,18 @@ export async function POST(request) {
 
   const hash = await hashPassword(password);
   const { lastInsertRowid } = run(
-    "INSERT INTO users (name, email, password_hash, role, player_id, team_id, active) VALUES (?, ?, ?, ?, ?, ?, 1)",
-    [cleanName, cleanEmail, hash, cleanRole, player_id || null, team_id || null]
+    "INSERT INTO users (name, email, password_hash, role, player_id, team_id, admin_areas, active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
+    [
+      cleanName,
+      cleanEmail,
+      hash,
+      cleanRole,
+      player_id || null,
+      team_id || null,
+      // A super-admin already has everything, so we never store areas for
+      // one — that way demoting them later doesn't leave stale grants behind.
+      cleanRole === "admin" ? null : serializeAreas(admin_areas) || null,
+    ]
   );
 
   return NextResponse.json({ ok: true, id: lastInsertRowid });

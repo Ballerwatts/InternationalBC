@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("finance");
   if (unauthorized) return unauthorized;
 
   return NextResponse.json(

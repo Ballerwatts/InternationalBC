@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 import { query, run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 // The club-level income/expense ledger ("in's and out's"). Admin-only —
 // distinct from the per-player dues tracked in /api/payments.
 export async function GET() {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("finance");
   if (unauthorized) return unauthorized;
 
   return NextResponse.json(query("SELECT * FROM budget_entries ORDER BY entry_date DESC, id DESC"));
 }
 
 export async function POST(request) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("finance");
   if (unauthorized) return unauthorized;
 
   const e = await request.json();

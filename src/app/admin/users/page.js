@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ADMIN_GROUPS, parseAreas } from "@/lib/admin-areas";
 
 const EMPTY = { name: "", email: "", password: "", role: "player", player_id: "", team_id: "" };
 
@@ -99,12 +100,14 @@ export default function UsersAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">
-            Comptes
+            Accounts
           </h1>
           <p className="mt-1 text-sm text-ibc-ink/60">
             Super-admin voit et gère tout. Coach gère uniquement l&apos;équipe qui lui est
             assignée (calendrier, tactiques, tableau d&apos;entraînement, présences). Joueur ne
-            voit que les informations de sa propre équipe.
+            voit que les informations de sa propre équipe. En plus du rôle, vous pouvez ouvrir
+            une ou plusieurs sections de l&apos;admin à un compte — par exemple Marketing seul,
+            ou Marketing + Finance. Seul un super-admin peut accorder ces accès.
           </p>
         </div>
         <button
@@ -300,6 +303,13 @@ function UserRow({ user, players, teams, open, onToggle, onSave, onDelete }) {
   const [teamId, setTeamId] = useState(user.team_id || "");
   const [newPassword, setNewPassword] = useState("");
   const [active, setActive] = useState(!!user.active);
+  const [areas, setAreas] = useState(parseAreas(user.admin_areas));
+
+  const isSuper = role === "admin";
+
+  function toggleArea(key) {
+    setAreas((prev) => (prev.includes(key) ? prev.filter((a) => a !== key) : [...prev, key]));
+  }
 
   const teamName = teams.find((t) => t.id === user.team_id)?.name;
 
@@ -321,6 +331,15 @@ function UserRow({ user, players, teams, open, onToggle, onSave, onDelete }) {
                 {teamName}
               </span>
             )}
+            {user.role !== "admin" &&
+              parseAreas(user.admin_areas).map((a) => (
+                <span
+                  key={a}
+                  className="ml-2 rounded bg-ibc-blue/5 px-2 py-0.5 text-xs font-semibold uppercase text-ibc-blue"
+                >
+                  {ADMIN_GROUPS.find((g) => g.key === a)?.label || a}
+                </span>
+              ))}
             {!user.active && <span className="ml-2 rounded bg-red-50 px-2 py-0.5 text-xs text-red-600">désactivé</span>}
           </p>
           <p className="text-xs text-ibc-ink/50">
@@ -369,6 +388,37 @@ function UserRow({ user, players, teams, open, onToggle, onSave, onDelete }) {
               ))}
             </select>
           </div>
+          <div className="col-span-2 rounded-xl border border-ibc-accent/40 bg-ibc-accent/5 p-3">
+            <p className="text-xs font-bold uppercase text-ibc-blue/70">Sections de l&apos;admin</p>
+            {isSuper ? (
+              <p className="mt-1 text-sm text-ibc-ink/60">
+                Un super-admin a déjà accès à toutes les sections.
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-xs text-ibc-ink/60">
+                  Cochez ce que ce compte peut ouvrir dans /admin. Rien de coché = pas d&apos;accès
+                  à l&apos;admin du tout. « Accounts » reste réservé au super-admin.
+                </p>
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                  {ADMIN_GROUPS.map((g) => (
+                    <label key={g.key} className="flex items-start gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={areas.includes(g.key)}
+                        onChange={() => toggleArea(g.key)}
+                      />
+                      <span>
+                        <span className="font-semibold text-ibc-ink">{g.label}</span>
+                        <span className="block text-xs text-ibc-ink/50">{g.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           <div className="col-span-2">
             <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
               Réinitialiser le mot de passe
@@ -388,7 +438,13 @@ function UserRow({ user, players, teams, open, onToggle, onSave, onDelete }) {
           <div className="col-span-2 flex gap-2">
             <button
               onClick={() => {
-                const patch = { role, player_id: playerId || null, team_id: teamId || null, active };
+                const patch = {
+                  role,
+                  player_id: playerId || null,
+                  team_id: teamId || null,
+                  active,
+                  admin_areas: role === "admin" ? [] : areas,
+                };
                 if (newPassword) patch.password = newPassword;
                 onSave(patch);
                 setNewPassword("");

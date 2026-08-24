@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { get, query, run } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,7 @@ const FIELDS = [
 ];
 
 export async function PUT(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("organisation");
   if (unauthorized) return unauthorized;
 
   const body = await request.json();
@@ -65,7 +65,7 @@ export async function PUT(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("organisation");
   if (unauthorized) return unauthorized;
 
   run("DELETE FROM players WHERE id = ?", [params.id]);

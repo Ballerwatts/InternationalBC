@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { get, query, run, getAllSettings } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-auth";
+import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ const SEASON = "2026-2027";
 // and Members admin pages — avoids having to open a player's payment
 // history just to flip this one flag.
 export async function POST(request, { params }) {
-  const unauthorized = await requireAdmin();
+  const unauthorized = await requireArea("organisation");
   if (unauthorized) return unauthorized;
 
   const { paid } = await request.json();
