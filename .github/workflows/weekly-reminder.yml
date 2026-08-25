@@ -1,0 +1,56 @@
+# Monday 08:00 Europe/Zurich — the club's weekly reminder and newsletter.
+#
+# GitHub cron is UTC only and has no timezone support, so Geneva's DST would
+# drag the send an hour either way across the season. Two schedules are
+# declared (06:00 and 07:00 UTC, i.e. 08:00 CEST and 08:00 CET) and the job
+# bails on whichever one is not 08:00 in Geneva right now. Exactly one fires
+# each Monday, all year.
+#
+# Requires one repository secret: CRON_SECRET, the same value set with
+#   fly secrets set CRON_SECRET=... --app internationalbc
+
+name: Weekly reminder
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # 08:00 Europe/Zurich while CEST (summer)
+    - cron: "0 7 * * 1" # 08:00 Europe/Zurich while CET  (winter)
+  workflow_dispatch: # lets you fire it by hand from the Actions tab
+
+concurrency:
+  group: weekly-reminder
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is it 08:00 in Geneva?
+        id: clock
+        run: |
+          hour=$(TZ=Europe/Zurich date +%H)
+          echo "Geneva local hour: $hour"
+          if [ "$hour" = "08" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Not 08:00 in Geneva — this is the other DST schedule. Skipping."
+          fi
+
+      - name: Send the weekly reminder
+        if: steps.clock.outputs.go == 'true'
+        run: |
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://internationalbc.fly.dev/api/cron/weekly-reminder)
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          [ "$code" = "200" ]
+
+      - name: Send the weekly newsletter
+        if: steps.clock.outputs.go == 'true'
+        run: |
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://internationalbc.fly.dev/api/cron/weekly-newsletter)
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          [ "$code" = "200" ]

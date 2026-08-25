@@ -21,6 +21,16 @@ ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/ibc.db
 ENV PORT=3000
 
+# Stamped by the deploy command so /api/version reports the truth:
+#   fly deploy --build-arg GIT_COMMIT=$(git rev-parse --short HEAD) \
+#              --build-arg BUILT_AT=$(date -u +%Y-%m-%dT%H:%MZ)
+# Defaults to "unknown" rather than a stale value — an honest gap beats a
+# confident lie about what is running.
+ARG GIT_COMMIT=unknown
+ARG BUILT_AT=unknown
+ENV APP_COMMIT=$GIT_COMMIT
+ENV APP_BUILT=$BUILT_AT
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
