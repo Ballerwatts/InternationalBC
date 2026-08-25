@@ -15,6 +15,9 @@
 const SEPARATORS = [";", "\t", ","];
 
 const COLUMN_ALIASES = {
+  kind: ["type", "kind", "genre", "categorie", "category"],
+  team: ["equipe", "team", "squad"],
+  title: ["titre", "title", "nom", "name", "evenement", "event"],
   date: ["date", "jour", "day"],
   start_time: ["heure", "heure de debut", "debut", "start", "start time", "time", "hour"],
   end_time: ["fin", "heure de fin", "end", "end time"],
@@ -123,6 +126,27 @@ export function addMinutes(hhmm, minutes) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+/**
+ * 'match' | 'entrainement' | 'evenement' | 'tournoi' and their English
+ * equivalents -> the kind stored on the row. Anything unrecognised is
+ * reported rather than silently filed as a game.
+ */
+const KIND_ALIASES = {
+  game: ["match", "matchs", "game", "games", "rencontre"],
+  practice: ["entrainement", "entrainements", "practice", "training", "seance"],
+  event: ["evenement", "evenements", "event", "events", "club", "sortie"],
+  tournament: ["tournoi", "tournois", "tournament", "cup", "coupe"],
+};
+
+export function parseKind(value) {
+  const v = normalizeHeader(value);
+  if (!v) return null;
+  for (const [kind, aliases] of Object.entries(KIND_ALIASES)) {
+    if (aliases.includes(v)) return kind;
+  }
+  return null;
+}
+
 /** 'domicile' / 'home' / 'D' -> 'home' · 'exterieur' / 'away' / 'E' -> 'away'. */
 function parseHomeAway(value) {
   const v = normalizeHeader(value);
@@ -139,7 +163,7 @@ function parseHomeAway(value) {
  *   rows are ready for INSERT: { practice_date, start_time, end_time,
  *   opponent, home_away, location_name, location_address, notes, line }
  */
-export function parseGameCsv(text, { defaultDurationMinutes = 120 } = {}) {
+export function parseGameCsv(text, { defaultDurationMinutes = 120, defaultKind = "game" } = {}) {
   const errors = [];
   const rows = [];
 
@@ -207,18 +231,43 @@ export function parseGameCsv(text, { defaultDurationMinutes = 120 } = {}) {
       return;
     }
 
+    // Without a type column the block is what it always was: games.
+    const rawKind = cell("kind");
+    const kind = rawKind ? parseKind(rawKind) : defaultKind;
+    if (!kind) {
+      errors.push({
+        line: lineNo,
+        message: `type inconnu : « ${rawKind} » — attendu match, entrainement, evenement ou tournoi`,
+      });
+      return;
+    }
+
     const opponent = cell("opponent");
-    if (!opponent) {
-      errors.push({ line: lineNo, message: "adversaire manquant" });
+    const title = cell("title");
+
+    // A game needs someone to play; an event or tournament needs a name.
+    // A practice needs neither — it is just a slot in a hall.
+    if (kind === "game" && !opponent) {
+      errors.push({ line: lineNo, message: "adversaire manquant pour un match" });
+      return;
+    }
+    if ((kind === "event" || kind === "tournament") && !title && !opponent) {
+      errors.push({
+        line: lineNo,
+        message: kind === "event" ? "titre manquant pour un événement" : "nom du tournoi manquant",
+      });
       return;
     }
 
     rows.push({
       line: lineNo,
+      kind,
+      team: cell("team") || null,
+      title: title || null,
       practice_date,
       start_time,
       end_time,
-      opponent,
+      opponent: opponent || null,
       home_away: parseHomeAway(cell("home_away")),
       location_name: cell("location_name") || null,
       location_address: cell("location_address") || null,
@@ -229,8 +278,15 @@ export function parseGameCsv(text, { defaultDurationMinutes = 120 } = {}) {
   return { rows, errors, usedHeader: looksLikeHeader };
 }
 
+// One line per event. `type` and `equipe` are optional: leave `type` out and
+// everything is a game, leave `equipe` out and the row goes to whichever
+// squads are ticked in the import panel — which is how a club event or a
+// tournament lands on every calendar at once.
 export const CSV_TEMPLATE = [
-  "date;heure;adversaire;salle;domicile;notes",
-  "04.10.2026;20:00;BBC Meyrin;École Raymond-Uldry;D;",
-  "11.10.2026;18:30;Lancy Basket;Salle du Petit-Lancy;E;déplacement",
+  "type;equipe;date;heure;fin;adversaire;titre;salle;domicile;notes",
+  "match;IBBC Men (2LCM);04.10.2026;20:00;;BBC Meyrin;;École Raymond-Uldry;D;",
+  "match;IBBC Women (NL1);11.10.2026;18:30;;Lancy Basket;;Salle du Petit-Lancy;E;déplacement",
+  "entrainement;IBBC Youth Men's Team (U18M);15.10.2026;18:00;19:30;;;Collège Sismondi;;",
+  "evenement;;20.12.2026;19:00;23:00;;Souper de Noël du club;Restaurant Mama & Zita;;",
+  "tournoi;;14.03.2027;09:00;18:00;;UN Inter-Agency Games;Bout-du-Monde;;",
 ].join("\n");

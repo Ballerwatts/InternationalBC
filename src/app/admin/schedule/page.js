@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { EVENT_KINDS, eventLabel, kindNeedsTitle } from "@/lib/event-kinds";
 import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import { CSV_TEMPLATE } from "@/lib/game-csv";
+
+const KIND_LABELS = {
+  game: "Match",
+  practice: "Entraînement",
+  event: "Événement",
+  tournament: "Tournoi",
+};
 import { todayISO } from "@/lib/dates";
 import WeeklyPatternEditor from "@/components/WeeklyPatternEditor";
 
@@ -37,7 +44,10 @@ export default function ScheduleAdminPage() {
   // Bulk game import
   const [showImport, setShowImport] = useState(false);
   const [csv, setCsv] = useState("");
-  const [importTeamId, setImportTeamId] = useState("");
+  // Which calendars the import writes to. All squads are ticked by default —
+  // a club event or tournament usually belongs on every one of them.
+  const [importTeamIds, setImportTeamIds] = useState(null); // null = not yet initialised
+  const [defaultKind, setDefaultKind] = useState("game");
   const [preview, setPreview] = useState(null);
   const [importing, setImporting] = useState(false);
 
@@ -63,7 +73,11 @@ export default function ScheduleAdminPage() {
       .then((d) => setGyms(Array.isArray(d) ? d : []));
     fetch("/api/admin/teams")
       .then((r) => r.json())
-      .then((d) => setTeams(Array.isArray(d) ? d : []));
+      .then((d) => {
+        const list = Array.isArray(d) ? d : [];
+        setTeams(list);
+        setImportTeamIds((prev) => prev ?? list.map((t) => t.id));
+      });
   }, []);
 
   const teamNameById = Object.fromEntries(teams.map((t) => [t.id, t.name]));
@@ -133,7 +147,7 @@ export default function ScheduleAdminPage() {
     const res = await fetch("/api/practices/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csv, team_id: importTeamId, dry_run: true }),
+      body: JSON.stringify({ csv, team_ids: importTeamIds ?? [], default_kind: defaultKind, dry_run: true }),
     });
     setPreview(await res.json());
     setImporting(false);
@@ -144,7 +158,7 @@ export default function ScheduleAdminPage() {
     const res = await fetch("/api/practices/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csv, team_id: importTeamId, dry_run: false }),
+      body: JSON.stringify({ csv, team_ids: importTeamIds ?? [], default_kind: defaultKind, dry_run: false }),
     });
     const data = await res.json();
     setMessage(
@@ -239,7 +253,10 @@ export default function ScheduleAdminPage() {
         <div className="mt-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm">
           <p className="text-sm text-ibc-ink/70">
             Collez le calendrier de la ligue, ou déposez un fichier .csv / .txt. Une ligne par
-            match. Colonnes reconnues :{" "}
+            entrée — match, entraînement, événement de club ou tournoi. Colonnes reconnues :{" "}
+            <code className="rounded bg-black/5 px-1">type</code>,{" "}
+            <code className="rounded bg-black/5 px-1">equipe</code>,{" "}
+            <code className="rounded bg-black/5 px-1">titre</code>,{" "}
             <code className="rounded bg-black/5 px-1">date</code>,{" "}
             <code className="rounded bg-black/5 px-1">heure</code>,{" "}
             <code className="rounded bg-black/5 px-1">adversaire</code>,{" "}
@@ -251,17 +268,63 @@ export default function ScheduleAdminPage() {
           </p>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            <div className="w-full rounded-lg border border-black/10 bg-black/[0.02] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase text-ibc-blue/70">
+                  Calendriers visés
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setImportTeamIds(teams.map((t) => t.id))}
+                  className="text-[11px] font-bold uppercase text-ibc-blue hover:underline"
+                >
+                  Tout sélectionner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportTeamIds([])}
+                  className="text-[11px] font-bold uppercase text-ibc-ink/50 hover:underline"
+                >
+                  Aucun
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-3">
+                {teams.map((t) => {
+                  const on = (importTeamIds ?? []).includes(t.id);
+                  return (
+                    <label key={t.id} className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() =>
+                          setImportTeamIds((prev) =>
+                            (prev ?? []).includes(t.id)
+                              ? (prev ?? []).filter((id) => id !== t.id)
+                              : [...(prev ?? []), t.id]
+                          )
+                        }
+                      />
+                      {t.name}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-[11px] text-ibc-ink/50">
+                Une ligne qui nomme une équipe va uniquement dans son calendrier. Une ligne sans
+                équipe est créée dans chaque calendrier coché — c&apos;est ainsi qu&apos;un
+                événement de club ou un tournoi atterrit sur tous.
+              </p>
+            </div>
             <select
-              value={importTeamId}
-              onChange={(e) => setImportTeamId(e.target.value)}
-              className="input"
+              value={defaultKind}
+              onChange={(e) => setDefaultKind(e.target.value)}
+              className="input !w-auto"
+              title="Type appliqué aux lignes sans colonne « type »"
             >
-              <option value="">Tout le club</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
+              <option value="game">Sans colonne type : matchs</option>
+              <option value="practice">Sans colonne type : entraînements</option>
+              <option value="event">Sans colonne type : événements</option>
+              <option value="tournament">Sans colonne type : tournois</option>
             </select>
             <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={onCsvFile} className="text-xs" />
             <button
@@ -303,7 +366,7 @@ export default function ScheduleAdminPage() {
                 onClick={commitImport}
                 className="rounded-full bg-green-600 px-5 py-2 text-xs font-bold uppercase text-white hover:brightness-110 disabled:opacity-50"
               >
-                Importer {preview.toCreate.length} match(s)
+                Importer {preview.toCreate.length} entrée(s)
               </button>
             )}
           </div>
@@ -327,8 +390,8 @@ export default function ScheduleAdminPage() {
 
               {preview.duplicates?.length > 0 && (
                 <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-                  {preview.duplicates.length} match(s) déjà au calendrier, ils seront ignorés :{" "}
-                  {preview.duplicates.map((d) => `${d.practice_date} vs ${d.opponent}`).join(", ")}
+                  {preview.duplicates.length} entrée(s) déjà au calendrier, elles seront ignorées :{" "}
+                  {preview.duplicates.map((d) => `${d.practice_date} ${d.team_name} — ${d.opponent || d.title}`).join(", ")}
                 </p>
               )}
 
@@ -337,16 +400,24 @@ export default function ScheduleAdminPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-black/5 bg-black/[0.02] text-left uppercase text-ibc-ink/50">
+                        <th className="px-3 py-1.5">Type</th>
+                        <th className="px-3 py-1.5">Équipe</th>
                         <th className="px-3 py-1.5">Date</th>
                         <th className="px-3 py-1.5">Heure</th>
-                        <th className="px-3 py-1.5">Adversaire</th>
+                        <th className="px-3 py-1.5">Adversaire / titre</th>
                         <th className="px-3 py-1.5">Salle</th>
                         <th className="px-3 py-1.5">D/E</th>
                       </tr>
                     </thead>
                     <tbody>
                       {preview.toCreate.map((r) => (
-                        <tr key={r.line} className="border-b border-black/5 last:border-0">
+                        <tr key={`${r.line}-${r.team_id ?? "club"}`} className="border-b border-black/5 last:border-0">
+                          <td className="px-3 py-1.5">
+                            <span className="rounded-full bg-ibc-blue/10 px-2 py-0.5 text-[10px] font-bold uppercase text-ibc-blue">
+                              {KIND_LABELS[r.kind] || r.kind}
+                            </span>
+                          </td>
+                          <td className="px-3 py-1.5 text-ibc-ink/60">{r.team_name}</td>
                           <td className="px-3 py-1.5">
                             {r.practice_date}
                             {holidayDays[r.practice_date] && (
@@ -358,7 +429,7 @@ export default function ScheduleAdminPage() {
                           <td className="px-3 py-1.5">
                             {r.start_time}–{r.end_time}
                           </td>
-                          <td className="px-3 py-1.5 font-semibold">{r.opponent}</td>
+                          <td className="px-3 py-1.5 font-semibold">{r.opponent || r.title}</td>
                           <td className="px-3 py-1.5 text-ibc-ink/60">{r.location_name || "—"}</td>
                           <td className="px-3 py-1.5">
                             {r.home_away === "home" ? "Domicile" : r.home_away === "away" ? "Extérieur" : "—"}
