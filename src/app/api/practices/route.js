@@ -67,7 +67,7 @@ export async function POST(request) {
 
   const { lastInsertRowid } = run(
     `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, video_url, team_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       kind || "practice",
       title || (kind === "game" ? "Match" : "Entraînement"),
