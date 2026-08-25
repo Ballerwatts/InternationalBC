@@ -249,10 +249,35 @@ it the same way and extend that test. Club-wide announcements
   presence only.
 - The weekly cron **builds drafts and stops**. Keep it that way.
 
+### The mailbox is editable, and that has two sharp edges
+
+`/admin/emails` writes the SMTP settings to a **`smtp_config` table, one row,
+id pinned to 1** — deliberately *not* a key in `settings`, because
+`GET /api/settings` is public and returns that entire table, and its PUT
+writes arbitrary keys. A mailbox password near either of those is a leak
+waiting to happen.
+
+- **The password is encrypted** (AES-256-GCM keyed off `SESSION_SECRET`, see
+  `src/lib/smtp-config.js`) and never returned by any route. `GET` reports
+  `hasPassword` and nothing more. A `PUT` with an empty `pass` keeps the
+  stored one — the form cannot show you the password, so treating blank as
+  "clear it" would wipe a working credential every time someone fixed a typo
+  in the host. Rotating `SESSION_SECRET` makes the stored password
+  undecryptable; `decryptPassword()` returns null rather than throwing on
+  every send, and the panel then shows the password as unset.
+- **A saved mailbox beats the env vars.** Filling the form in has to make
+  mail start flowing, or the screen is a lie. `smtpStatus().source` says
+  which is live and the panel shows it, so the two never silently disagree.
+  Deleting the row hands control back to the environment.
+
+The transporter cache in `email.js` is keyed on the config itself, so saving
+new settings takes effect on the next send with no restart and no
+invalidation call to forget.
+
 ### Schema added (auto-applied on boot)
 
 `newsletters`, `newsletter_recipients`, `player_guardians`, `email_log`,
-`email_optouts`, plus `players.birth_date` and `announcements.team_id`
+`email_optouts`, `smtp_config`, plus `players.birth_date` and `announcements.team_id`
 (NULL = club-wide; without it club news cannot be targeted).
 
 ### Fixed in passing

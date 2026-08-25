@@ -423,14 +423,27 @@ To fire it automatically every Monday morning, pick one:
 
 ### Email (SMTP)
 
-No email provider is configured by default — until `SMTP_HOST` is set, the
-app logs "would send email" to the server console instead of actually
-sending, so nothing breaks in local development. Any SMTP mailbox works:
-Gmail (create an "app password" under your Google Account security
-settings — your normal password won't work), Infomaniak, your own domain's
-mail provider, etc. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`,
-`FROM_EMAIL` — see `.env.example`. Also set `SITE_URL` to the live domain:
-images and links inside an email cannot be relative.
+Set the club's mailbox in **/admin/emails → Outgoing mailbox** — host, port,
+username, password and From address, saved from the browser and live on the
+next message, no redeploy. *Delete mailbox* clears it again.
+
+The password is stored encrypted (AES-256-GCM, keyed off `SESSION_SECRET`)
+in its own `smtp_config` table — never in `settings`, whose GET endpoint is
+public — and no API ever returns it, not even masked. Editing the host with
+the password field left blank keeps the stored password.
+
+The `SMTP_*` environment variables still work and act as the fallback. **A
+mailbox saved in the admin wins over them**; the panel says which of the two
+is live so the pair never quietly disagree.
+
+Until one or the other is configured, the app logs "would send email" and
+records every message in the log with status `dev` instead of actually
+sending, so nothing breaks in local development. Any SMTP mailbox works: Gmail (create an "app password" under your Google
+Account security settings — your normal password won't work), Infomaniak,
+your own domain's mail provider, etc. For the environment-variable route,
+set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL` — see
+`.env.example`. Either way, set `SITE_URL` to the live domain: images and
+links inside an email cannot be relative.
 
 To check it from the app: **/admin/emails → Verify connection** opens a real
 connection and authenticates, and the box beside it sends a test message.

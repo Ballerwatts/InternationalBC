@@ -284,6 +284,27 @@ function migrate(db) {
     -- Instagram posts hand-picked for the public gallery. We store only the
     -- permalink and let Instagram's own embed script render it, so there is
     -- no Meta app, no access token and nothing to refresh every 60 days.
+    -- The club's outgoing mailbox, editable from /admin/emails instead of
+    -- only through deploy-time env vars.
+    --
+    -- Deliberately NOT a row in settings: GET /api/settings is public and
+    -- returns that whole table, and its PUT writes arbitrary keys. A mailbox
+    -- password has no business anywhere near either. One row, id pinned to 1.
+    --
+    -- password_enc is AES-256-GCM, keyed off SESSION_SECRET — see
+    -- src/lib/smtp-config.js. It is never returned by any API.
+    CREATE TABLE IF NOT EXISTS smtp_config (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      host TEXT,
+      port INTEGER NOT NULL DEFAULT 587,
+      secure INTEGER NOT NULL DEFAULT 0,
+      username TEXT,
+      password_enc TEXT,
+      from_email TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+
     -- ── Newsletter ────────────────────────────────────────────────────────
     -- One newsletter issue. team_id NULL = whole club. The content lives in
     -- blocks_json (an ordered array of typed blocks, see
@@ -419,7 +440,6 @@ function migrate(db) {
   // NULL = club-wide. Without this an announcement cannot be targeted, and
   // club news leaks into a single-squad newsletter with no way to stop it.
   addColumnIfMissing(db, "announcements", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
-
   migrateTeamNames(db);
   migrateEnglishDefaults(db);
 }

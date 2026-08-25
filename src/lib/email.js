@@ -13,49 +13,71 @@
 
 import nodemailer from "nodemailer";
 import { run } from "@/lib/db";
+import { effectiveSmtp } from "@/lib/smtp-config";
 
 let _transporter;
+let _transporterKey; // the config the cached transporter was built from
 
+/**
+ * Built from whichever mailbox is live — the one saved in /admin/emails, or
+ * the env vars as fallback. The cache is keyed on the config itself, so
+ * saving new settings takes effect on the next send with no restart and no
+ * explicit invalidation to forget.
+ */
 function getTransporter() {
-  if (_transporter !== undefined) return _transporter;
+  const { config } = effectiveSmtp();
 
-  const host = process.env.SMTP_HOST;
-  if (!host) {
+  if (!config?.host) {
     _transporter = null;
-    return _transporter;
+    _transporterKey = null;
+    return null;
   }
 
+  const cacheKey = JSON.stringify([config.host, config.port, config.secure, config.user, config.pass]);
+  if (_transporter && _transporterKey === cacheKey) return _transporter;
+
   _transporter = nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT || 587),
+    host: config.host,
     // Port 465 is implicit TLS; anything else (587, 25) uses STARTTLS.
-    secure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT) === 465,
-    auth: process.env.SMTP_USER
-      ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      : undefined,
+    port: config.port,
+    secure: config.secure || config.port === 465,
+    auth: config.user ? { user: config.user, pass: config.pass } : undefined,
   });
+  _transporterKey = cacheKey;
 
   return _transporter;
 }
 
-/** Which SMTP settings are present. Never reports SMTP_PASS's value. */
+/** Which SMTP settings are live, and where they came from. Never the password. */
 export function smtpStatus() {
+  const { config, source } = effectiveSmtp();
   return {
-    configured: !!process.env.SMTP_HOST,
-    host: process.env.SMTP_HOST || null,
-    port: Number(process.env.SMTP_PORT || 587),
-    user: process.env.SMTP_USER || null,
+    configured: !!config?.host,
+    source, // 'database' (saved in /admin/emails) | 'environment' | 'none'
+    host: config?.host || null,
+    port: config?.port ?? 587,
+    secure: !!config?.secure,
+    user: config?.user || null,
     // Presence only. The value never leaves the server, not even masked —
     // a masked secret in a JSON payload is still a secret in a JSON payload.
-    hasPassword: !!process.env.SMTP_PASS,
-    from: process.env.FROM_EMAIL || null,
+    hasPassword: !!config?.pass,
+    from: config?.from || null,
+    // Shown so someone editing the mailbox can see an env fallback exists
+    // and is being overridden, rather than wondering why nothing changed.
+    envAvailable: !!process.env.SMTP_HOST,
     siteUrl: process.env.SITE_URL || "https://internationalbc.fly.dev",
   };
 }
 
 export async function verifySmtp() {
   const transporter = getTransporter();
-  if (!transporter) return { ok: false, dev: true, error: "SMTP_HOST is not set — running in dev mode." };
+  if (!transporter) {
+    return {
+      ok: false,
+      dev: true,
+      error: "No mailbox configured — running in dev mode. Fill in the SMTP settings above, or set SMTP_HOST.",
+    };
+  }
   try {
     await transporter.verify();
     return { ok: true };
@@ -94,14 +116,16 @@ export async function sendEmail({
   category = "other",
   newsletterId = null,
 }) {
-  const from =
-    process.env.FROM_EMAIL || "International Basketball Club Genève <no-reply@international-bc-geneve.local>";
   const transporter = getTransporter();
+  const from =
+    effectiveSmtp().config?.from ||
+    process.env.FROM_EMAIL ||
+    "International Basketball Club Genève <no-reply@international-bc-geneve.local>";
   const recipient = Array.isArray(to) ? to.join(", ") : to;
 
   if (!transporter) {
     console.log("[email:dev-mode] Would send email:", { to: recipient, subject });
-    logSend({ to: recipient, subject, category, newsletterId, status: "dev", response: "SMTP_HOST unset" });
+    logSend({ to: recipient, subject, category, newsletterId, status: "dev", response: "no mailbox configured (dev mode)" });
     return { ok: true, dev: true };
   }
 
