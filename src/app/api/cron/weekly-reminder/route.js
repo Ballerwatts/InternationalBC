@@ -9,16 +9,21 @@ export const dynamic = "force-dynamic";
 // Intended to be triggered every Monday morning by a scheduler (a Fly.io
 // scheduled machine, or an external pinger like cron-job.org hitting this
 // URL with the CRON_SECRET). See README "Monday reminder automation".
-export async function GET(request) {
-  return handle(request);
-}
+// No GET on purpose — a crawler, a link prefetch or someone pasting the URL
+// into a browser must not be able to send the week's mail. POST only.
 export async function POST(request) {
   return handle(request);
 }
 
 async function handle(request) {
+  // Fail closed. An unset CRON_SECRET used to mean "no check at all", which
+  // made this a public button that mails the whole club — and the mistake was
+  // invisible, because the endpoint kept answering 200.
   const secret = process.env.CRON_SECRET;
-  if (secret) {
+  if (!secret) {
+    return NextResponse.json({ error: "CRON_SECRET is not configured" }, { status: 503 });
+  }
+  {
     const auth = request.headers.get("authorization");
     const provided = auth?.replace("Bearer ", "") || new URL(request.url).searchParams.get("secret");
     if (provided !== secret) {
