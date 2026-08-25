@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toISODate } from "@/lib/dates";
 
 function mondayOfCurrentWeek() {
   const d = new Date();
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  return toISODate(d);
 }
 
 const EMPTY = { week_start_date: mondayOfCurrentWeek(), focus: "", drills: "", notes: "" };

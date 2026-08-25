@@ -4,11 +4,12 @@ import PracticeMap from "@/components/PracticeMap";
 import HeroSlider from "@/components/HeroSlider";
 import InstagramGallery from "@/components/InstagramGallery";
 import VideoEmbed from "@/components/VideoEmbed";
+import { todayISO } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
 function nextPractices(limit = 4) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   return query(
     `SELECT * FROM practices WHERE practice_date >= ? ORDER BY practice_date ASC, start_time ASC LIMIT ?`,
     [today, limit]

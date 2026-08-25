@@ -7,18 +7,14 @@
 // is what tests/newsletter-segmentation.test.js asserts.
 
 import { query, get, getAllSettings } from "@/lib/db";
+import { mondayOfISO, addDays as addDaysISO } from "@/lib/dates";
 
 export function mondayOf(date = new Date()) {
-  const d = new Date(date);
-  const day = d.getDay(); // 0 = Sunday
-  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
-  return d.toISOString().slice(0, 10);
+  return mondayOfISO(date);
 }
 
 export function addDays(dateStr, days) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(dateStr, days);
 }
 
 /**

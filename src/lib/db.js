@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { SEED_HOLIDAYS } from "@/lib/holidays";
+import { toISODate } from "@/lib/dates";
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "ibc.db");
 
@@ -425,6 +426,25 @@ function migrate(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(team_id, gym_id)
     );
+
+    -- The weekly rhythm of one squad: which days it trains, at what time, in
+    -- which hall. Replaces a hardcoded "Monday and Thursday, 20:00–22:00" in
+    -- the calendar generator, which was the 2LCM pattern and only ever right
+    -- for 2LCM — the youth squad trains on different days, and club events
+    -- run any day of the week.
+    --
+    -- weekday follows JavaScript getDay(): 0 = Sunday … 6 = Saturday.
+    CREATE TABLE IF NOT EXISTS team_practice_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      weekday INTEGER NOT NULL CHECK (weekday BETWEEN 0 AND 6),
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      gym_id INTEGER REFERENCES gyms(id) ON DELETE SET NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(team_id, weekday, start_time)
+    );
   `);
 
   // Lightweight upgrade path for dev databases created before team_id /
@@ -704,7 +724,7 @@ function seed(db) {
       d.setDate(d.getDate() + 1);
       const day = d.getDay(); // 1 = Monday, 4 = Thursday
       if (day === 1 || day === 4) {
-        const iso = d.toISOString().slice(0, 10);
+        const iso = toISODate(d);
         insert.run("practice", "Entraînement", iso, "20:00", "22:00", loc, addr, null, null, primaryTeamId);
         created++;
       }
@@ -933,6 +953,42 @@ export function syncTeamPracticeLocation(teamId) {
 /** Re-sync every team — cheap, and keeps things consistent after bulk edits. */
 export function syncAllTeamPracticeLocations() {
   for (const t of query("SELECT id FROM teams")) syncTeamPracticeLocation(t.id);
+}
+
+
+// ---------------------------------------------------------------------------
+// Weekly practice pattern
+// ---------------------------------------------------------------------------
+
+/** One squad's weekly slots, in day order, with the gym resolved. */
+export function getSlotsForTeam(teamId) {
+  return query(
+    `SELECT s.*, g.name AS gym_name, g.address AS gym_address
+     FROM team_practice_slots s
+     LEFT JOIN gyms g ON g.id = s.gym_id
+     WHERE s.team_id IS ?
+     ORDER BY s.weekday ASC, s.start_time ASC`,
+    [teamId]
+  );
+}
+
+/**
+ * Replace a squad's whole weekly pattern. The admin screen always sends the
+ * complete list, so diffing would only add failure modes.
+ */
+export function replaceSlotsForTeam(teamId, slots) {
+  if (!Array.isArray(slots)) return;
+  run("DELETE FROM team_practice_slots WHERE team_id IS ?", [teamId]);
+  slots.forEach((s, i) => {
+    const weekday = Number(s?.weekday);
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return;
+    if (!s?.start_time || !s?.end_time) return;
+    run(
+      `INSERT OR IGNORE INTO team_practice_slots (team_id, weekday, start_time, end_time, gym_id, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [teamId, weekday, s.start_time, s.end_time, s.gym_id ? Number(s.gym_id) : null, i]
+    );
+  });
 }
 
 export default getDb;

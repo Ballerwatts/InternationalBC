@@ -2,6 +2,7 @@ import { query, getAllSettings } from "@/lib/db";
 import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import CalendarList from "@/components/CalendarList";
 import PracticeMap from "@/components/PracticeMap";
+import { todayISO } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendrier — International Basketball Club Geneva" };
@@ -33,7 +34,7 @@ function buildTimeline({ events, holidays, holidayDays, anchorDate, isPast }) {
 
 export default function CalendarPage() {
   const settings = getAllSettings();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
 
   const upcoming = query(
     "SELECT * FROM practices WHERE practice_date >= ? ORDER BY practice_date ASC, start_time ASC",

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { query } from "@/lib/db";
 import { getAccount } from "@/lib/access";
 import { visibleGroups } from "@/lib/admin-areas";
+import { todayISO } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export default async function AdminDashboard() {
   const playerCount = query("SELECT COUNT(*) as c FROM players WHERE active = 1")[0].c;
   const upcomingCount = query(
     "SELECT COUNT(*) as c FROM practices WHERE practice_date >= ?",
-    [new Date().toISOString().slice(0, 10)]
+    [todayISO()]
   )[0].c;
   const playsCount = query("SELECT COUNT(*) as c FROM plays")[0].c;
   const totalPaid = query(

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { query, run } from "@/lib/db";
+import { query, run, getSlotsForTeam } from "@/lib/db";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
 import { applyAbsencesToPractice } from "@/lib/absences";
 import { isSupportedVideoUrl } from "@/lib/video";
+import { toISODate } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -90,36 +91,59 @@ export async function POST(request) {
   return NextResponse.json({ ok: true, id: lastInsertRowid });
 }
 
-function generateWeeks({ weeks = 12, location_name, location_address, teamId }) {
+function generateWeeks({ weeks = 12, teamId }) {
+  // The squad's own weekly pattern — which days, what times, which hall.
+  // Falls back to the historical Monday/Thursday 20:00–22:00 only when a
+  // squad has no pattern saved yet, so existing behaviour is unchanged until
+  // someone sets one from /admin/schedule.
+  const slots = getSlotsForTeam(teamId);
+  const pattern = slots.length
+    ? slots
+    : [
+        { weekday: 1, start_time: "20:00", end_time: "22:00", gym_name: null, gym_address: null },
+        { weekday: 4, start_time: "20:00", end_time: "22:00", gym_name: null, gym_address: null },
+      ];
+
+  // A session already on the calendar is identified by date AND start time —
+  // a squad can legitimately train twice on the same day.
   const existing = new Set(
-    query("SELECT practice_date FROM practices WHERE kind = 'practice' AND team_id IS ?", [teamId]).map(
-      (r) => r.practice_date
-    )
+    query(
+      "SELECT practice_date, start_time FROM practices WHERE kind = 'practice' AND team_id IS ?",
+      [teamId]
+    ).map((r) => `${r.practice_date}|${r.start_time}`)
   );
 
-  let d = new Date();
-  let createdCount = 0;
-  const horizon = weeks * 7 + 7;
-  const insert = `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, team_id)
-                   VALUES ('practice', 'Entraînement', ?, '20:00', '22:00', ?, ?, ?)`;
+  const byWeekday = new Map();
+  for (const slot of pattern) {
+    if (!byWeekday.has(slot.weekday)) byWeekday.set(slot.weekday, []);
+    byWeekday.get(slot.weekday).push(slot);
+  }
 
-  for (let i = 0; i < horizon; i++) {
+  const insert = `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, team_id)
+                   VALUES ('practice', 'Entraînement', ?, ?, ?, ?, ?, ?)`;
+
+  const d = new Date();
+  let createdCount = 0;
+  for (let i = 0; i < weeks * 7; i++) {
     d.setDate(d.getDate() + 1);
-    const day = d.getDay();
-    if (day === 1 || day === 4) {
-      const iso = d.toISOString().slice(0, 10);
-      if (!existing.has(iso)) {
-        const { lastInsertRowid } = run(insert, [
-          iso,
-          location_name || null,
-          location_address || null,
-          teamId,
-        ]);
-        applyAbsencesToPractice(lastInsertRowid);
-        createdCount++;
-      }
+    const daySlots = byWeekday.get(d.getDay());
+    if (!daySlots) continue;
+    const iso = toISODate(d);
+    for (const slot of daySlots) {
+      if (existing.has(`${iso}|${slot.start_time}`)) continue;
+      const { lastInsertRowid } = run(insert, [
+        iso,
+        slot.start_time,
+        slot.end_time,
+        slot.gym_name || null,
+        slot.gym_address || null,
+        teamId,
+      ]);
+      applyAbsencesToPractice(lastInsertRowid);
+      existing.add(`${iso}|${slot.start_time}`);
+      createdCount++;
     }
   }
 
-  return NextResponse.json({ ok: true, created: createdCount });
+  return NextResponse.json({ ok: true, created: createdCount, usedPattern: slots.length > 0 });
 }

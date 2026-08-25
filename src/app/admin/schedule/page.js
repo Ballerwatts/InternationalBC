@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { EVENT_KINDS, eventLabel, kindNeedsTitle } from "@/lib/event-kinds";
 import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import { CSV_TEMPLATE } from "@/lib/game-csv";
+import { todayISO } from "@/lib/dates";
+import WeeklyPatternEditor from "@/components/WeeklyPatternEditor";
 
 const EMPTY = {
   kind: "practice",
@@ -24,6 +26,7 @@ const EMPTY_HOLIDAY = { name: "", start_date: "", end_date: "", kind: "vacances"
 export default function ScheduleAdminPage() {
   const [items, setItems] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [gyms, setGyms] = useState([]);
   const [holidays, setHolidays] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState(null);
@@ -55,6 +58,9 @@ export default function ScheduleAdminPage() {
   useEffect(() => {
     refresh();
     refreshHolidays();
+    fetch("/api/gyms")
+      .then((r) => r.json())
+      .then((d) => setGyms(Array.isArray(d) ? d : []));
     fetch("/api/admin/teams")
       .then((r) => r.json())
       .then((d) => setTeams(Array.isArray(d) ? d : []));
@@ -104,8 +110,6 @@ export default function ScheduleAdminPage() {
         action: "generate_weeks",
         weeks: 12,
         team_id: genTeamId,
-        location_name: "École de commerce Raymond-Uldry",
-        location_address: "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
       }),
     });
     const data = await res.json();
@@ -180,8 +184,8 @@ export default function ScheduleAdminPage() {
     refreshHolidays();
   }
 
-  const upcoming = items.filter((i) => i.practice_date >= new Date().toISOString().slice(0, 10));
-  const past = items.filter((i) => i.practice_date < new Date().toISOString().slice(0, 10));
+  const upcoming = items.filter((i) => i.practice_date >= todayISO());
+  const past = items.filter((i) => i.practice_date < todayISO());
 
   return (
     <div className="max-w-3xl">
@@ -205,12 +209,16 @@ export default function ScheduleAdminPage() {
           disabled={generating}
           className="rounded-full bg-ibc-accent px-4 py-2 text-xs font-bold uppercase text-ibc-ink hover:brightness-95 disabled:opacity-50"
         >
-          {generating ? "Génération…" : "Générer les 12 prochaines semaines (lun/jeu)"}
+          {generating ? "Génération…" : "Générer les 12 prochaines semaines"}
         </button>
         <p className="w-full text-xs text-ibc-ink/50">
-          Ignore les dates où un match est déjà prévu. Les séances tombant pendant les vacances
-          scolaires genevoises sont créées mais signalées — la salle est une école.
+          Utilise le rythme hebdomadaire de l&apos;équipe ci-dessous. Ignore les dates déjà
+          occupées. Les séances tombant pendant les vacances scolaires genevoises sont créées mais
+          signalées — la salle est une école.
         </p>
+        <div className="w-full">
+          <WeeklyPatternEditor teamId={genTeamId} teams={teams} gyms={gyms} />
+        </div>
       </div>
 
       {message && (

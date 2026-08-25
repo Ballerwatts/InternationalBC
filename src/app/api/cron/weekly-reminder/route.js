@@ -3,6 +3,7 @@ import { query, get } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { buildIcsFeed } from "@/lib/ics";
+import { mondayOfISO, addDays as addDaysISO } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -149,18 +150,10 @@ function buildWhatsAppText({ board, weekEvents, monday }) {
 }
 
 function mondayOfCurrentWeek() {
-  const d = new Date();
-  const day = d.getDay(); // 0 = Sunday
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  return mondayOfISO();
 }
 
-function addDays(dateStr, days) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+const addDays = addDaysISO;
 
 function formatFr(dateStr) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("fr-CH", {

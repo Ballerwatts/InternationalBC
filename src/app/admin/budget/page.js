@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { todayISO } from "@/lib/dates";
 
 const CATEGORY_LABELS = { gym: "Gym", license: "License", referee: "Referees", other: "Other" };
 
@@ -27,7 +28,7 @@ const EMPTY_ENTRY = {
   entry_type: "expense",
   category: "gym",
   amount: "",
-  entry_date: new Date().toISOString().slice(0, 10),
+  entry_date: todayISO(),
   description: "",
 };
 
