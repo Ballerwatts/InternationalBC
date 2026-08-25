@@ -20,7 +20,7 @@ export const ADMIN_GROUPS = [
       { href: "/admin/hero", label: "Hero" },
       { href: "/admin/announcements", label: "Announcements" },
       { href: "/admin/sponsors", label: "Sponsors" },
-      { href: "/admin/gym", label: "Gym" },
+      { href: "/admin/gyms", label: "Gyms" },
       { href: "/admin/teams", label: "Teams" },
       { href: "/admin/newsletter", label: "Newsletter" },
       { href: "/admin/emails", label: "Email log" },

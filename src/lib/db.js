@@ -28,6 +28,9 @@ function getDb() {
   _db.exec("PRAGMA journal_mode = WAL;");
   migrate(_db);
   seed(_db);
+  // After seed() so a brand-new database already has its teams and club
+  // settings to promote into real gym rows.
+  migrateGyms(_db);
   return _db;
 }
 
@@ -392,6 +395,36 @@ function migrate(db) {
       sort_order INTEGER DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    -- The halls the club uses. Previously a venue was just free text typed
+    -- into teams.practice_location_name / practices.location_name, which meant
+    -- the same gym was re-typed (and mis-typed) in several places. A gym is
+    -- now a real row an admin manages once from /admin/gyms, and teams point
+    -- at it — see team_gyms below. The old free-text columns are kept and
+    -- mirrored so nothing that reads them (emails, .ics, older pages) breaks.
+    CREATE TABLE IF NOT EXISTS gyms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      address TEXT,
+      maps_url TEXT,   -- optional override; blank = Google Maps search on the address
+      notes TEXT,      -- e.g. "entrance via the courtyard, ring the bell"
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Which squads use which gym, and for what. A gym can host several teams
+    -- (that is the point — the public should see every squad training at a
+    -- hall) and a team can use several gyms (practice in one, home games in
+    -- another). usage: 'practice' | 'games' | 'both'.
+    CREATE TABLE IF NOT EXISTS team_gyms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      gym_id INTEGER NOT NULL REFERENCES gyms(id) ON DELETE CASCADE,
+      usage TEXT NOT NULL DEFAULT 'practice', -- 'practice' | 'games' | 'both'
+      schedule_note TEXT,                     -- e.g. "Mon & Thu 20:00–22:00"
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(team_id, gym_id)
+    );
   `);
 
   // Lightweight upgrade path for dev databases created before team_id /
@@ -445,6 +478,10 @@ function migrate(db) {
   // nothing is uploaded, because the 1 GB volume also holds the database.
   addColumnIfMissing(db, "practices", "video_url", "TEXT");
   addColumnIfMissing(db, "announcements", "video_url", "TEXT");
+  // Two photos per hall — the way in, and the court itself. A visiting team
+  // that has never been to Sismondi needs to recognise the door.
+  addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");
+  addColumnIfMissing(db, "gyms", "photo_exterior_data_url", "TEXT");
 
   migrateTeamNames(db);
   migrateEnglishDefaults(db);
@@ -729,6 +766,173 @@ export function setSetting(key, value) {
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     [key, String(value)]
   );
+}
+
+// One-time promotion of free-text venues to real `gyms` rows. Runs only while
+// the gyms table is still empty, so it never fights an admin who has since
+// curated the list from /admin/gyms. Every distinct venue already typed on a
+// team (or set as the club default in settings) becomes one gym, and each team
+// is linked to the gym it was already using. Nothing is deleted: the old
+// teams.practice_location_* columns stay populated and are kept in sync.
+function migrateGyms(db) {
+  const existing = db.prepare("SELECT COUNT(*) as c FROM gyms").get().c;
+  if (existing > 0) return;
+
+  const seen = new Map(); // "name|address" -> gym id
+  const insertGym = db.prepare(
+    "INSERT INTO gyms (name, address, sort_order) VALUES (?, ?, ?)"
+  );
+
+  const upsertGym = (name, address) => {
+    const cleanName = (name || "").trim();
+    const cleanAddress = (address || "").trim();
+    if (!cleanName && !cleanAddress) return null;
+    // Two venues at the same street address are the same building, even when
+    // they were typed with different names ("École Raymond-Uldry" vs "École de
+    // commerce Raymond-Uldry") — collapse them into one gym rather than
+    // importing the historical typos as separate halls.
+    const norm = (s) => s.toLowerCase().replace(/\s+/g, " ").replace(/[.,]/g, "").trim();
+    const key = cleanAddress ? `addr:${norm(cleanAddress)}` : `name:${norm(cleanName)}`;
+    if (seen.has(key)) return seen.get(key);
+    const { lastInsertRowid } = insertGym.run(
+      cleanName || cleanAddress,
+      cleanAddress || null,
+      seen.size
+    );
+    const id = Number(lastInsertRowid);
+    seen.set(key, id);
+    return id;
+  };
+
+  // The club-wide default first, so it lands at sort_order 0 and reads as the
+  // club's main hall on the public pages.
+  const settingName = db
+    .prepare("SELECT value FROM settings WHERE key = 'practice_location_name'")
+    .get()?.value;
+  const settingAddress = db
+    .prepare("SELECT value FROM settings WHERE key = 'practice_location_address'")
+    .get()?.value;
+  const defaultGymId = upsertGym(settingName, settingAddress);
+
+  const linkStmt = db.prepare(
+    "INSERT OR IGNORE INTO team_gyms (team_id, gym_id, usage, sort_order) VALUES (?, ?, 'practice', 0)"
+  );
+  const teams = db
+    .prepare("SELECT id, practice_location_name, practice_location_address FROM teams")
+    .all();
+  for (const team of teams) {
+    const gymId = upsertGym(team.practice_location_name, team.practice_location_address);
+    if (gymId) linkStmt.run(team.id, gymId);
+  }
+
+  if (defaultGymId) {
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('home_gym_id', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).run(String(defaultGymId));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gyms
+// ---------------------------------------------------------------------------
+
+/**
+ * Every gym, each with the squads attached to it. Used by the public Club page
+ * ("who trains here"), the Teams page, and the admin gyms screen — one query
+ * instead of an N+1 per gym.
+ */
+export function getGymsWithTeams() {
+  const gyms = query("SELECT * FROM gyms ORDER BY sort_order ASC, name ASC");
+  const links = query(
+    `SELECT tg.*, t.name AS team_name, t.category AS team_category, t.sort_order AS team_sort_order
+     FROM team_gyms tg
+     JOIN teams t ON t.id = tg.team_id
+     ORDER BY t.sort_order ASC, t.name ASC`
+  );
+  return gyms.map((gym) => ({
+    ...gym,
+    teams: links.filter((l) => l.gym_id === gym.id),
+  }));
+}
+
+/** The gyms one squad uses, in display order, with usage + schedule note. */
+export function getGymsForTeam(teamId) {
+  return query(
+    `SELECT g.*, tg.usage, tg.schedule_note, tg.sort_order AS link_sort_order
+     FROM team_gyms tg
+     JOIN gyms g ON g.id = tg.gym_id
+     WHERE tg.team_id = ?
+     ORDER BY tg.sort_order ASC, g.name ASC`,
+    [teamId]
+  );
+}
+
+/** Same as above for every team at once, keyed by team id. */
+export function getGymsByTeamId() {
+  const rows = query(
+    `SELECT tg.team_id, tg.usage, tg.schedule_note, g.*
+     FROM team_gyms tg
+     JOIN gyms g ON g.id = tg.gym_id
+     ORDER BY tg.sort_order ASC, g.name ASC`
+  );
+  const out = {};
+  for (const r of rows) {
+    (out[r.team_id] ||= []).push(r);
+  }
+  return out;
+}
+
+/**
+ * The club's main hall — what the homepage and the public calendar show when
+ * no squad is in context. Falls back to the legacy free-text settings so a
+ * database that predates gyms still renders something.
+ */
+export function getHomeGym() {
+  const settings = getAllSettings();
+  if (settings.home_gym_id) {
+    const gym = get("SELECT * FROM gyms WHERE id = ?", [Number(settings.home_gym_id)]);
+    if (gym) return gym;
+  }
+  const first = get("SELECT * FROM gyms ORDER BY sort_order ASC, name ASC LIMIT 1");
+  if (first) return first;
+  if (settings.practice_location_name || settings.practice_location_address) {
+    return {
+      id: null,
+      name: settings.practice_location_name || "",
+      address: settings.practice_location_address || "",
+      maps_url: null,
+      notes: null,
+    };
+  }
+  return null;
+}
+
+/**
+ * Mirror a team's first practice gym back into the legacy
+ * teams.practice_location_* columns. Those are still read by the weekly
+ * reminder email, the .ics feed and a couple of older views, so keeping them
+ * in sync means the gym screen is the single place an admin edits a venue.
+ */
+export function syncTeamPracticeLocation(teamId) {
+  const gym = get(
+    `SELECT g.name, g.address
+     FROM team_gyms tg
+     JOIN gyms g ON g.id = tg.gym_id
+     WHERE tg.team_id = ? AND tg.usage IN ('practice', 'both')
+     ORDER BY tg.sort_order ASC, g.name ASC
+     LIMIT 1`,
+    [teamId]
+  );
+  run("UPDATE teams SET practice_location_name = ?, practice_location_address = ? WHERE id = ?", [
+    gym?.name || null,
+    gym?.address || null,
+    teamId,
+  ]);
+}
+
+/** Re-sync every team — cheap, and keeps things consistent after bulk edits. */
+export function syncAllTeamPracticeLocations() {
+  for (const t of query("SELECT id FROM teams")) syncTeamPracticeLocation(t.id);
 }
 
 export default getDb;

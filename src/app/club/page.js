@@ -1,5 +1,5 @@
-import { getAllSettings, query } from "@/lib/db";
-import PracticeMap from "@/components/PracticeMap";
+import { getAllSettings, query, getGymsWithTeams } from "@/lib/db";
+import GymCard from "@/components/GymCard";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "The Club — International Basketball Club Geneva (IBBC)" };
@@ -7,6 +7,9 @@ export const metadata = { title: "The Club — International Basketball Club Gen
 export default function ClubPage() {
   const settings = getAllSettings();
   const teams = query("SELECT * FROM teams ORDER BY sort_order ASC, name ASC");
+  const gyms = getGymsWithTeams();
+  const assignedTeamIds = new Set(gyms.flatMap((g) => (g.teams || []).map((t) => t.team_id)));
+  const unassigned = teams.filter((t) => !assignedTeamIds.has(t.id));
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-14">
@@ -21,33 +24,24 @@ export default function ClubPage() {
         <InfoCard label="Season" value={settings.season_label} />
       </div>
 
-      <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">
-        Practice locations
-      </h2>
+      <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">Our gyms</h2>
       <p className="mt-2 text-sm text-ibc-ink/60">
-        Each squad's practice venue, set from the admin Équipes page.
+        Every hall the club uses, and which squads you will find there. A squad
+        can train in one gym and play its home games in another — and a gym can
+        host several squads. Managed from the admin Gyms page.
       </p>
       <div className="mt-4 space-y-6">
-        {teams.map((team) => {
-          const name = team.practice_location_name || settings.practice_location_name;
-          const address = team.practice_location_address || settings.practice_location_address;
-          return (
-            <div key={team.id} className="rounded-xl border border-black/5 bg-ibc-blue/5 p-4">
-              <p className="font-display text-base font-bold uppercase text-ibc-blue">
-                {team.name}
-              </p>
-              {name || address ? (
-                <>
-                  <p className="mt-1 text-sm text-ibc-ink/80">{name}</p>
-                  <p className="text-xs text-ibc-ink/60">{address}</p>
-                  {address && <PracticeMap address={address} />}
-                </>
-              ) : (
-                <p className="mt-1 text-sm text-ibc-ink/50">Location to be announced.</p>
-              )}
-            </div>
-          );
-        })}
+        {gyms.map((gym) => (
+          <GymCard key={gym.id} gym={gym} />
+        ))}
+        {gyms.length === 0 && (
+          <p className="text-sm text-ibc-ink/50">No gyms listed yet.</p>
+        )}
+        {unassigned.length > 0 && (
+          <p className="text-sm text-ibc-ink/50">
+            Venue to be announced for {unassigned.map((t) => t.name).join(", ")}.
+          </p>
+        )}
       </div>
 
       <h2 className="mt-12 font-display text-2xl font-bold uppercase text-ibc-blue">Games</h2>
