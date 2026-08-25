@@ -11,6 +11,7 @@
 import { useMemo, useState } from "react";
 import { eventLabel, isHighlightKind } from "@/lib/event-kinds";
 import { gameOutcome, outcomeClasses, OUTCOME_LABELS } from "@/lib/game-result";
+import VideoEmbed from "@/components/VideoEmbed";
 
 const FILTERS = [
   { value: "all", label: "Tout" },
@@ -204,6 +205,18 @@ function EventCard({ event: e, teamName, holidayName, isPast }) {
           </p>
         )}
         {!e.recap && e.notes && <p className="mt-1 text-xs text-ibc-ink/60">{e.notes}</p>}
+
+        {/* Game footage. Only the first frame loads until it is clicked —
+            embedding a player per fixture would make a season's calendar
+            unusable on a phone. */}
+        {e.video_url && (
+          <div className="mt-3 max-w-sm">
+            <VideoEmbed url={e.video_url} title={`${eventLabel(e)} — ${e.practice_date}`} />
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-ibc-ink/45">
+              Match video
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Action */}

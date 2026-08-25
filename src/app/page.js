@@ -3,6 +3,7 @@ import { getAllSettings, query } from "@/lib/db";
 import PracticeMap from "@/components/PracticeMap";
 import HeroSlider from "@/components/HeroSlider";
 import InstagramGallery from "@/components/InstagramGallery";
+import VideoEmbed from "@/components/VideoEmbed";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,15 @@ export default function HomePage() {
                 key={a.id}
                 className="overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm ring-1 ring-black/5"
               >
-                {a.image_data_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.image_data_url} alt="" className="h-40 w-full object-cover" />
+                {/* A video leads the card when there is one — its first
+                    frame stands in for a photo, and plays in place. */}
+                {a.video_url ? (
+                  <VideoEmbed url={a.video_url} title={a.title} className="!rounded-none !border-0" />
+                ) : (
+                  a.image_data_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={a.image_data_url} alt="" className="h-40 w-full object-cover" />
+                  )
                 )}
                 <div className="p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-ibc-blue/70">

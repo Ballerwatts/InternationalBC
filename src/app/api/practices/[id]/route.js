@@ -3,6 +3,7 @@ import { get, run } from "@/lib/db";
 import { applyAbsencesToPractice } from "@/lib/absences";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
+import { isSupportedVideoUrl } from "@/lib/video";
 
 const FIELDS = [
   "kind",
@@ -18,6 +19,8 @@ const FIELDS = [
   "score_us",
   "score_them",
   "recap",
+  // YouTube/Vimeo link to the footage, shown on the calendar.
+  "video_url",
 ];
 
 export const dynamic = "force-dynamic";
@@ -40,6 +43,12 @@ export async function PUT(request, { params }) {
   if (scopeError) return scopeError;
 
   const body = await request.json();
+  if ("video_url" in body && !isSupportedVideoUrl(body.video_url)) {
+    return NextResponse.json(
+      { error: "Lien vidéo non reconnu — collez une URL YouTube ou Vimeo." },
+      { status: 400 }
+    );
+  }
   const session = await getSession();
   const sets = [];
   const values = [];

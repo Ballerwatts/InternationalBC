@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import ImageDropzone from "@/components/ImageDropzone";
 
-const EMPTY = { title: "", body: "", published: 1, image_data_url: "" };
+const EMPTY = { title: "", body: "", published: 1, image_data_url: "", video_url: "" };
 
 export default function AnnouncementsAdminPage() {
   const [items, setItems] = useState([]);
@@ -73,6 +73,15 @@ export default function AnnouncementsAdminPage() {
           required
         />
         <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+            Lien vidéo (YouTube ou Vimeo — optionnel)
+          </label>
+          <input
+            placeholder="https://www.youtube.com/watch?v=…"
+            value={form.video_url || ""}
+            onChange={(e) => setForm({ ...form, video_url: e.target.value })}
+            className="input mb-4 w-full"
+          />
           <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
             Image (optionnelle, petit format)
           </label>

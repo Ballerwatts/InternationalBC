@@ -16,6 +16,7 @@ const EMPTY = {
   location_address: "Chemin du Domaine-Patry 1, 1224 Chêne-Bougeries, Genève",
   opponent: "",
   notes: "",
+  video_url: "",
 };
 
 const EMPTY_HOLIDAY = { name: "", start_date: "", end_date: "", kind: "vacances" };
@@ -526,6 +527,12 @@ export default function ScheduleAdminPage() {
           placeholder="Adresse"
           value={form.location_address}
           onChange={(e) => setForm({ ...form, location_address: e.target.value })}
+          className="input col-span-2"
+        />
+        <input
+          placeholder="Lien vidéo du match (YouTube ou Vimeo — optionnel)"
+          value={form.video_url || ""}
+          onChange={(e) => setForm({ ...form, video_url: e.target.value })}
           className="input col-span-2"
         />
         <textarea

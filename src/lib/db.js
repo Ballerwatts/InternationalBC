@@ -440,6 +440,12 @@ function migrate(db) {
   // NULL = club-wide. Without this an announcement cannot be targeted, and
   // club news leaks into a single-squad newsletter with no way to stop it.
   addColumnIfMissing(db, "announcements", "team_id", "INTEGER REFERENCES teams(id) ON DELETE CASCADE");
+  // YouTube/Vimeo share link for game footage and announcement clips. Stored
+  // as the pasted URL and turned into an embed at render time (see lib/video.js) —
+  // nothing is uploaded, because the 1 GB volume also holds the database.
+  addColumnIfMissing(db, "practices", "video_url", "TEXT");
+  addColumnIfMissing(db, "announcements", "video_url", "TEXT");
+
   migrateTeamNames(db);
   migrateEnglishDefaults(db);
 }

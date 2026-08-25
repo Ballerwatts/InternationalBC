@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { run } from "@/lib/db";
 import { requireArea } from "@/lib/access";
+import { isSupportedVideoUrl } from "@/lib/video";
 
 export const dynamic = "force-dynamic";
 
@@ -8,10 +9,16 @@ export async function PUT(request, { params }) {
   const unauthorized = await requireArea("marketing");
   if (unauthorized) return unauthorized;
 
-  const { title, body, published, image_data_url } = await request.json();
+  const { title, body, published, image_data_url, video_url } = await request.json();
+  if (!isSupportedVideoUrl(video_url)) {
+    return NextResponse.json(
+      { error: "Lien vidéo non reconnu — collez une URL YouTube ou Vimeo." },
+      { status: 400 }
+    );
+  }
   run(
-    "UPDATE announcements SET title = ?, body = ?, published = ?, image_data_url = ?, updated_at = datetime('now') WHERE id = ?",
-    [title, body, published ? 1 : 0, image_data_url || null, params.id]
+    "UPDATE announcements SET title = ?, body = ?, published = ?, image_data_url = ?, video_url = ?, updated_at = datetime('now') WHERE id = ?",
+    [title, body, published ? 1 : 0, image_data_url || null, (video_url || "").trim() || null, params.id]
   );
 
   return NextResponse.json({ ok: true });

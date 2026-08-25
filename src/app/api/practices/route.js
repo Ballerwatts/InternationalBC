@@ -3,6 +3,7 @@ import { query, run } from "@/lib/db";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
 import { applyAbsencesToPractice } from "@/lib/absences";
+import { isSupportedVideoUrl } from "@/lib/video";
 
 export const dynamic = "force-dynamic";
 
@@ -53,13 +54,19 @@ export async function POST(request) {
     return generateWeeks({ ...body, teamId });
   }
 
-  const { kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes } = body;
+  const { kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, video_url } = body;
+  if (!isSupportedVideoUrl(video_url)) {
+    return NextResponse.json(
+      { error: "Lien vidéo non reconnu — collez une URL YouTube ou Vimeo." },
+      { status: 400 }
+    );
+  }
   if (!practice_date || !start_time || !end_time) {
     return NextResponse.json({ error: "date, heure de début et de fin requises" }, { status: 400 });
   }
 
   const { lastInsertRowid } = run(
-    `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, team_id)
+    `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, video_url, team_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       kind || "practice",
@@ -71,6 +78,7 @@ export async function POST(request) {
       location_address || null,
       opponent || null,
       notes || null,
+      (video_url || "").trim() || null,
       teamId,
     ]
   );
