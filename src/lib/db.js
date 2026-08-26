@@ -498,6 +498,12 @@ function migrate(db) {
   // nothing is uploaded, because the 1 GB volume also holds the database.
   addColumnIfMissing(db, "practices", "video_url", "TEXT");
   addColumnIfMissing(db, "announcements", "video_url", "TEXT");
+  // Box score beyond points. Nullable on purpose: a coach who only has the
+  // final score should not be forced to invent rebounds, and a NULL means
+  // "not recorded" rather than "zero" when the averages are computed.
+  addColumnIfMissing(db, "game_stats", "rebounds", "INTEGER");
+  addColumnIfMissing(db, "game_stats", "three_pointers", "INTEGER");
+  addColumnIfMissing(db, "game_stats", "minutes", "INTEGER");
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");
@@ -587,6 +593,10 @@ function addColumnIfMissing(db, table, column, definition) {
 }
 
 const DEFAULT_SETTINGS = {
+  // Newsletter chrome, editable from /admin/newsletter. Free text only —
+  // the crest, the colours and the unsubscribe link are not editable.
+  newsletter_header_text: "",
+  newsletter_footer_text: "",
   admin_password_hash: "", // set on first run via /api/auth/bootstrap or env var
   hero_headline: "International Basketball Club Geneva",
   hero_subheadline: "IBBC — Geneva Amateur Basketball Association",

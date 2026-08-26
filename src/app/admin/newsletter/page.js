@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import NewsletterChromeEditor from "@/components/NewsletterChromeEditor";
 
 const STATUS_STYLES = {
   draft: "bg-black/5 text-ibc-ink/60",
@@ -52,6 +53,10 @@ export default function NewsletterListPage() {
         >
           {creating ? "Cancel" : "+ New issue"}
         </button>
+      </div>
+
+      <div className="mt-6">
+        <NewsletterChromeEditor />
       </div>
       <p className="mt-1 text-sm text-ibc-ink/60">
         A weekly email of results, fixtures and club news. Each issue targets one squad — or the whole

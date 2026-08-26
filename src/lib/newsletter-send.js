@@ -36,6 +36,8 @@ export function renderContext(newsletter) {
       crest_url: "/logo.png",
     },
     team,
+    headerText: settings.newsletter_header_text || "",
+    footerText: settings.newsletter_footer_text || "",
     siteUrl: siteUrl(),
   };
 }

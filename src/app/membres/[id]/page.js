@@ -45,7 +45,8 @@ export default async function MemberProfilePage({ params }) {
   // otherwise the pre-existing hand-typed figures stand (see lib/stats.js).
   const stats = statsForPlayer(rawPlayer);
   const recentGames = query(
-    `SELECT p.id, p.practice_date, p.opponent, p.score_us, p.score_them, g.points
+    `SELECT p.id, p.practice_date, p.opponent, p.score_us, p.score_them,
+            g.points, g.rebounds, g.three_pointers, g.minutes
      FROM game_stats g JOIN practices p ON p.id = g.practice_id
      WHERE g.player_id = ?
      ORDER BY p.practice_date DESC
@@ -120,7 +121,12 @@ export default async function MemberProfilePage({ params }) {
           <div className={`mt-4 grid gap-3 ${attendedCount !== null ? "grid-cols-4" : "grid-cols-3"}`}>
             <Stat label="Games" value={stats.games} />
             <Stat label="Points" value={stats.points} />
-            <Stat label="Pts/game" value={stats.ppg} />
+            <Stat label="PPG" value={stats.ppg} />
+            {/* Only shown once actually recorded — a blank average is more
+                honest than a 0.0 nobody earned. */}
+            {stats.rpg != null && <Stat label="RPG" value={stats.rpg} />}
+            {stats.threePointers != null && <Stat label="3PT" value={stats.threePointers} />}
+            {stats.mpg != null && <Stat label="Min/game" value={stats.mpg} />}
             {attendedCount !== null && <Stat label="Attended" value={attendedCount} />}
           </div>
           <p className="mt-1 text-[10px] uppercase tracking-wide text-ibc-ink/40">
@@ -154,7 +160,14 @@ export default async function MemberProfilePage({ params }) {
                           </span>
                         )}
                         <span className="font-display font-extrabold text-ibc-blue">
-                          {g.points} pts
+                          {[
+                            `${g.points} pts`,
+                            g.rebounds != null ? `${g.rebounds} reb` : null,
+                            g.three_pointers != null ? `${g.three_pointers} 3pt` : null,
+                            g.minutes != null ? `${g.minutes} min` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </span>
                     </li>

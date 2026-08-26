@@ -319,6 +319,12 @@ function blockText(block) {
  */
 export function renderNewsletter({
   club = {},
+  // Editable chrome, set from /admin/newsletter. Free text, not markup: the
+  // structural parts (crest, colours, and the unsubscribe link) stay fixed,
+  // because an admin should not be able to style the email into unreadability
+  // or delete the link the law requires.
+  headerText = "",
+  footerText = "",
   team = null,
   blocks = [],
   recipientName = "",
@@ -332,6 +338,12 @@ export function renderNewsletter({
   const gym = club.gym || "École Raymond Uldry, Grand-Lancy";
   const site = String(siteUrl || DEFAULT_SITE).replace(/\/+$/, "");
   const crest = image(club.crest_url || "/logo.png", clubName, 56, siteUrl);
+
+  /** Free text -> escaped HTML, newlines preserved as line breaks. */
+  const asLines = (value) =>
+    escapeHtml(String(value || "").trim()).replace(/\r?\n/g, "<br />");
+  const headerLine = asLines(headerText);
+  const footerLines = asLines(footerText);
 
   const body = (Array.isArray(blocks) ? blocks : [])
     .map((b) => (BLOCK_RENDERERS[b?.type] ? BLOCK_RENDERERS[b.type](b, ctx) : ""))
@@ -377,6 +389,7 @@ export function renderNewsletter({
                 <td valign="middle">
                   <p style="margin:0;font-family:${FONT};font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#b9bce8;">${escapeHtml(team ? team.name : "Club newsletter")}</p>
                   <p class="ibc-hero-title" style="margin:3px 0 0 0;font-family:${FONT};font-size:22px;line-height:28px;font-weight:bold;color:${WHITE};">${escapeHtml(subject || clubName)}</p>
+                  ${headerLine ? `<p style="margin:8px 0 0 0;font-family:${FONT};font-size:13px;line-height:20px;color:#d4d6f4;">${headerLine}</p>` : ""}
                 </td>
               </tr>
             </table>
@@ -395,7 +408,7 @@ export function renderNewsletter({
         <tr>
           <td bgcolor="${BLUE_DARK}" class="ibc-pad" style="background-color:${BLUE_DARK};padding:22px 28px;">
             <p style="margin:0;font-family:${FONT};font-size:13px;line-height:20px;color:${WHITE};font-weight:bold;">${escapeHtml(clubName)}</p>
-            <p style="margin:4px 0 0 0;font-family:${FONT};font-size:12px;line-height:19px;color:#b9bce8;">${escapeHtml(gym)}</p>
+            <p style="margin:4px 0 0 0;font-family:${FONT};font-size:12px;line-height:19px;color:#b9bce8;">${footerLines || escapeHtml(gym)}</p>
             <p style="margin:12px 0 0 0;font-family:${FONT};font-size:12px;line-height:19px;color:#b9bce8;">${whyLine}</p>
             ${
               unsubscribeUrl
@@ -415,13 +428,14 @@ export function renderNewsletter({
   const textParts = [
     subject || clubName,
     team ? team.name : clubName,
+    String(headerText || "").trim(),
     "",
     recipientName ? `Hi ${String(recipientName).split(" ")[0]},` : "",
     ...(Array.isArray(blocks) ? blocks : []).map(blockText).filter(Boolean),
     "",
     "—",
     clubName,
-    gym,
+    String(footerText || "").trim() || gym,
     site,
     whyLine.replace(/<[^>]+>/g, ""),
     unsubscribeUrl ? `Unsubscribe: ${unsubscribeUrl}` : "",

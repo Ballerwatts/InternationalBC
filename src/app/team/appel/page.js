@@ -22,6 +22,47 @@ function todayIso() {
   ).padStart(2, "0")}`;
 }
 
+
+// Four figures per player per game. Points is the only one anyone always
+// has; the rest stay blank rather than defaulting to zero, because a blank
+// and a recorded nought mean different things to the season averages.
+const BOX_FIELDS = [
+  { key: "points", label: "pts", title: "Points", max: 999 },
+  { key: "rebounds", label: "reb", title: "Rebonds", max: 999 },
+  { key: "three_pointers", label: "3pt", title: "Tirs à 3 points réussis", max: 99 },
+  { key: "minutes", label: "min", title: "Minutes jouées", max: 99 },
+];
+
+function BoxScoreInputs({ line, onChange }) {
+  return (
+    <span className="flex items-center gap-1">
+      {BOX_FIELDS.map((f) => (
+        <input
+          key={f.key}
+          type="number"
+          min="0"
+          max={f.max}
+          title={f.title}
+          placeholder={f.label}
+          value={line?.[f.key] ?? ""}
+          onChange={(e) => onChange({ [f.key]: e.target.value })}
+          className="w-14 rounded-md border border-black/10 px-1.5 py-1 text-center text-xs"
+        />
+      ))}
+    </span>
+  );
+}
+
+function BoxScoreSummary({ line }) {
+  const shown = BOX_FIELDS.filter((f) => String(line?.[f.key] ?? "").trim() !== "");
+  if (shown.length === 0) return null;
+  return (
+    <span className="rounded-full bg-ibc-blue/10 px-2 py-1 text-xs font-bold text-ibc-blue">
+      {shown.map((f) => `${line[f.key]} ${f.label}`).join(" · ")}
+    </span>
+  );
+}
+
 export default function TeamRegisterPage() {
   const [status, setStatus] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -36,7 +77,10 @@ export default function TeamRegisterPage() {
 
   // Result editing state, per open game
   const [result, setResult] = useState({ score_us: "", score_them: "", recap: "" });
-  const [points, setPoints] = useState({});
+  // playerId -> { points, rebounds, three_pointers, minutes }. Blank means
+  // not recorded: a coach with only the scoring should not be made to invent
+  // rebounds, and the season averages divide by games actually recorded.
+  const [box, setBox] = useState({});
   const [savingResult, setSavingResult] = useState(false);
 
   const load = useCallback(async () => {
@@ -121,10 +165,17 @@ export default function TeamRegisterPage() {
         r.ok ? r.json() : []
       );
       const map = {};
-      for (const row of rows) map[row.player_id] = String(row.points);
-      setPoints(map);
+      for (const row of rows) {
+        map[row.player_id] = {
+          points: row.points == null ? "" : String(row.points),
+          rebounds: row.rebounds == null ? "" : String(row.rebounds),
+          three_pointers: row.three_pointers == null ? "" : String(row.three_pointers),
+          minutes: row.minutes == null ? "" : String(row.minutes),
+        };
+      }
+      setBox(map);
     } else {
-      setPoints({});
+      setBox({});
     }
   }
 
@@ -140,10 +191,22 @@ export default function TeamRegisterPage() {
       }),
     });
 
-    // Only players with a number typed in are counted as having played.
-    const stats = Object.entries(points)
-      .filter(([, v]) => String(v).trim() !== "")
-      .map(([player_id, v]) => ({ player_id: Number(player_id), points: Number(v) }));
+    // A player counts as having played once ANY of his four figures is filled
+    // in — a coach may log minutes for someone who did not score.
+    const stats = Object.entries(box)
+      .filter(([, v]) =>
+        ["points", "rebounds", "three_pointers", "minutes"].some(
+          (k) => String(v?.[k] ?? "").trim() !== ""
+        )
+      )
+      .map(([player_id, v]) => ({
+        player_id: Number(player_id),
+        points: String(v.points ?? "").trim() === "" ? 0 : Number(v.points),
+        rebounds: String(v.rebounds ?? "").trim() === "" ? null : Number(v.rebounds),
+        three_pointers:
+          String(v.three_pointers ?? "").trim() === "" ? null : Number(v.three_pointers),
+        minutes: String(v.minutes ?? "").trim() === "" ? null : Number(v.minutes),
+      }));
     await fetch(`/api/practices/${session.id}/stats`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -173,8 +236,9 @@ export default function TeamRegisterPage() {
     busyKey,
     result,
     setResult,
-    points,
-    setPoints,
+    box,
+    setBox,
+    // (box + setBox are passed above)
     saveResult,
     savingResult,
   };
@@ -241,8 +305,9 @@ function SessionList({
   busyKey,
   result,
   setResult,
-  points,
-  setPoints,
+  box,
+  setBox,
+  // (box + setBox are received above)
   saveResult,
   savingResult,
 }) {
@@ -334,19 +399,13 @@ function SessionList({
                         <span className="flex items-center gap-2">
                           {s.kind === "game" &&
                             (readOnly ? (
-                              points[p.id] ? (
-                                <span className="rounded-full bg-ibc-blue/10 px-2 py-1 text-xs font-bold text-ibc-blue">
-                                  {points[p.id]} pts
-                                </span>
-                              ) : null
+                              <BoxScoreSummary line={box[p.id]} />
                             ) : (
-                              <input
-                                type="number"
-                                min="0"
-                                placeholder="pts"
-                                value={points[p.id] ?? ""}
-                                onChange={(e) => setPoints({ ...points, [p.id]: e.target.value })}
-                                className="w-16 rounded-md border border-black/10 px-2 py-1 text-xs"
+                              <BoxScoreInputs
+                                line={box[p.id]}
+                                onChange={(patch) =>
+                                  setBox({ ...box, [p.id]: { ...(box[p.id] || {}), ...patch } })
+                                }
                               />
                             ))}
                           {readOnly ? (
