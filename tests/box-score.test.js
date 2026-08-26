@@ -85,3 +85,34 @@ test("a player with no box score keeps last season's hand-typed figures", () => 
   assert.equal(s.games, other.games_played);
   assert.equal(s.rpg, null);
 });
+
+// --- official games only ---
+
+test("a friendly's box score is excluded from season averages", async () => {
+  const { lastInsertRowid } = run(
+    `INSERT INTO practices (kind, title, practice_date, start_time, end_time)
+     VALUES ('friendly', 'Amical', '2026-11-20', '20:00', '22:00')`
+  );
+  // A 50-point friendly would drag PPG up hard if it counted.
+  run("INSERT INTO game_stats (practice_id, player_id, points, rebounds) VALUES (?, ?, 50, 20)", [
+    Number(lastInsertRowid), player.id,
+  ]);
+
+  const s = statsForPlayer(player);
+  assert.equal(s.games, 3, "the friendly must not add a game");
+  assert.equal(s.points, 60, "the friendly's 50 points must not count");
+  assert.equal(s.ppg, 20);
+  assert.equal(s.rebounds, 18, "nor its rebounds");
+});
+
+test("assists average over the games they were recorded in", () => {
+  const games = query(
+    "SELECT id FROM practices WHERE kind = 'game' ORDER BY practice_date LIMIT 2"
+  );
+  run("UPDATE game_stats SET assists = 5 WHERE practice_id = ? AND player_id = ?", [games[0].id, player.id]);
+  run("UPDATE game_stats SET assists = 3 WHERE practice_id = ? AND player_id = ?", [games[1].id, player.id]);
+  const s = statsForPlayer(player);
+  assert.equal(s.assists, 8);
+  assert.equal(s.assistGames, 2);
+  assert.equal(s.apg, 4);
+});

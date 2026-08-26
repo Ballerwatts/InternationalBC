@@ -23,10 +23,10 @@ function normalizeTeamName(value) {
 }
 
 function titleFor(row) {
-  if (row.kind === "game") {
+  if (row.kind === "game" || row.kind === "friendly") {
     const suffix =
       row.home_away === "home" ? " (domicile)" : row.home_away === "away" ? " (extérieur)" : "";
-    return `Match vs ${row.opponent}${suffix}`;
+    return `${row.kind === "friendly" ? "Friendly" : "Game"} vs ${row.opponent}${suffix}`;
   }
   if (row.kind === "practice") return row.title || "Entraînement";
   return row.title || row.opponent || "Événement";

@@ -46,7 +46,7 @@ export default async function MemberProfilePage({ params }) {
   const stats = statsForPlayer(rawPlayer);
   const recentGames = query(
     `SELECT p.id, p.practice_date, p.opponent, p.score_us, p.score_them,
-            g.points, g.rebounds, g.three_pointers, g.minutes
+            g.points, g.rebounds, g.assists, g.three_pointers, g.minutes
      FROM game_stats g JOIN practices p ON p.id = g.practice_id
      WHERE g.player_id = ?
      ORDER BY p.practice_date DESC
@@ -125,6 +125,7 @@ export default async function MemberProfilePage({ params }) {
             {/* Only shown once actually recorded — a blank average is more
                 honest than a 0.0 nobody earned. */}
             {stats.rpg != null && <Stat label="RPG" value={stats.rpg} />}
+            {stats.apg != null && <Stat label="APG" value={stats.apg} />}
             {stats.threePointers != null && <Stat label="3PT" value={stats.threePointers} />}
             {stats.mpg != null && <Stat label="Min/game" value={stats.mpg} />}
             {attendedCount !== null && <Stat label="Attended" value={attendedCount} />}
@@ -163,6 +164,7 @@ export default async function MemberProfilePage({ params }) {
                           {[
                             `${g.points} pts`,
                             g.rebounds != null ? `${g.rebounds} reb` : null,
+                            g.assists != null ? `${g.assists} ast` : null,
                             g.three_pointers != null ? `${g.three_pointers} 3pt` : null,
                             g.minutes != null ? `${g.minutes} min` : null,
                           ]

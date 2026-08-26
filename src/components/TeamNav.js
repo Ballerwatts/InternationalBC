@@ -14,7 +14,7 @@ const ITEMS = [
   { href: "/team/calendar", label: "Team calendar" },
   { href: "/team/tactiques", label: "Tactics" },
   { href: "/team/practice-board", label: "Practice board" },
-  { href: "/team/appel", label: "Match register" },
+  { href: "/team/appel", label: "Game register" },
 ];
 
 export default function TeamNav({ isAdmin, isStaff }) {

@@ -504,6 +504,7 @@ function migrate(db) {
   addColumnIfMissing(db, "game_stats", "rebounds", "INTEGER");
   addColumnIfMissing(db, "game_stats", "three_pointers", "INTEGER");
   addColumnIfMissing(db, "game_stats", "minutes", "INTEGER");
+  addColumnIfMissing(db, "game_stats", "assists", "INTEGER");
 
   // A sent issue can also become a post on the public home page. The post is
   // composed separately from the e-mail — a different title, a comment, one

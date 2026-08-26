@@ -8,6 +8,8 @@
 
 import { query, get, getAllSettings } from "@/lib/db";
 import { mondayOfISO, addDays as addDaysISO } from "@/lib/dates";
+import { SCORED_KINDS } from "@/lib/event-kinds";
+import { todayISO } from "@/lib/dates";
 
 export function mondayOf(date = new Date()) {
   return mondayOfISO(date);
@@ -40,34 +42,81 @@ function topScorerFor(practiceId) {
  * @param {{ teamId?: number|null, weekStart?: string, siteUrl?: string }} opts
  * @returns {Array} ordered blocks, ready for renderNewsletter()
  */
+/**
+ * The standout line in each category for one game, read from what the coach
+ * entered in the register. Points and threes are what a club actually talks
+ * about after a game, so they lead; the rest only appear when recorded.
+ */
+const LEADER_CATEGORIES = [
+  { key: "points", label: "points", short: "pts" },
+  { key: "three_pointers", label: "3-pointers", short: "3PT" },
+  { key: "rebounds", label: "rebounds", short: "reb" },
+  { key: "assists", label: "assists", short: "ast" },
+  { key: "minutes", label: "minutes", short: "min" },
+];
+
+function leadersFor(practiceId) {
+  const rows = query(
+    `SELECT gs.*, p.first_name, p.last_name
+     FROM game_stats gs JOIN players p ON p.id = gs.player_id
+     WHERE gs.practice_id = ?`,
+    [practiceId]
+  );
+  if (rows.length === 0) return [];
+
+  const out = [];
+  for (const cat of LEADER_CATEGORIES) {
+    const recorded = rows.filter((r) => r[cat.key] != null && Number(r[cat.key]) > 0);
+    if (recorded.length === 0) continue;
+    const best = Math.max(...recorded.map((r) => Number(r[cat.key])));
+    // A tie names everyone rather than picking one arbitrarily.
+    const names = recorded
+      .filter((r) => Number(r[cat.key]) === best)
+      .map((r) => `${r.first_name} ${r.last_name}`.trim());
+    out.push({ category: cat.key, label: cat.label, short: cat.short, value: best, names });
+  }
+  return out;
+}
+
 export function buildBlocks({ teamId = null, weekStart = mondayOf(), siteUrl = "" } = {}) {
   const settings = getAllSettings();
   const site = String(siteUrl || process.env.SITE_URL || "https://internationalbc.fly.dev").replace(/\/+$/, "");
 
-  // Last week: the seven days before the Monday we are building for.
+  // Results window. The Monday auto-draft reports the week just gone, but an
+  // issue built or regenerated mid-week must also pick up games already
+  // played THIS week — otherwise a coach who enters yesterday's score sees
+  // nothing in the newsletter and reasonably concludes it is broken.
   const lastWeekStart = addDays(weekStart, -7);
-  const lastWeekEnd = addDays(weekStart, -1);
+  const today = todayISO();
+  const weekEnd = addDays(weekStart, 6);
+  const lastWeekEnd = today > weekEnd ? weekEnd : today < weekStart ? addDays(weekStart, -1) : today;
   // Ahead: this week plus the next, which is what a Monday email is for.
   const aheadEnd = addDays(weekStart, 13);
 
   const tf = teamFilter(teamId);
 
-  /* results — games with a score, from the week just gone */
+  /* results — played games with a score, official and friendly alike */
+  const scoredIn = SCORED_KINDS.map(() => "?").join(", ");
   const games = query(
     `SELECT * FROM practices
-     WHERE kind = 'game' AND practice_date >= ? AND practice_date <= ?${tf.sql}
+     WHERE kind IN (${scoredIn}) AND practice_date >= ? AND practice_date <= ?${tf.sql}
+       AND score_us IS NOT NULL
      ORDER BY practice_date ASC`,
-    [lastWeekStart, lastWeekEnd, ...tf.params]
+    [...SCORED_KINDS, lastWeekStart, lastWeekEnd, ...tf.params]
   ).map((g) => {
     const top = topScorerFor(g.id);
     return {
       id: g.id,
       team_id: g.team_id ?? null,
+      kind: g.kind,
+      friendly: g.kind === "friendly",
       practice_date: g.practice_date,
       opponent: g.opponent,
       score_us: g.score_us,
       score_them: g.score_them,
       recap: g.recap,
+      // Who stood out, straight from what the coach typed into the register.
+      leaders: leadersFor(g.id),
       top_scorer: top ? { name: `${top.first_name} ${top.last_name}`.trim(), points: top.points } : null,
     };
   });

@@ -51,7 +51,7 @@ export const ADMIN_GROUPS = [
       { href: "/team/availability", label: "Availability" },
       { href: "/team/tactiques", label: "Tactics" },
       { href: "/team/practice-board", label: "Practice board" },
-      { href: "/team/appel", label: "Match register" },
+      { href: "/team/appel", label: "Game register" },
       { href: "/team/calendar", label: "Team calendar" },
     ],
   },

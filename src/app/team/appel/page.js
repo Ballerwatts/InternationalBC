@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { eventLabel } from "@/lib/event-kinds";
 import { gameOutcome, outcomeClasses } from "@/lib/game-result";
+import { isScoredKind } from "@/lib/event-kinds";
 
 function todayIso() {
   const d = new Date();
@@ -29,6 +30,7 @@ function todayIso() {
 const BOX_FIELDS = [
   { key: "points", label: "pts", title: "Points", max: 999 },
   { key: "rebounds", label: "reb", title: "Rebonds", max: 999 },
+  { key: "assists", label: "ast", title: "Passes décisives", max: 99 },
   { key: "three_pointers", label: "3pt", title: "Tirs à 3 points réussis", max: 99 },
   { key: "minutes", label: "min", title: "Minutes jouées", max: 99 },
 ];
@@ -169,6 +171,7 @@ export default function TeamRegisterPage() {
         map[row.player_id] = {
           points: row.points == null ? "" : String(row.points),
           rebounds: row.rebounds == null ? "" : String(row.rebounds),
+          assists: row.assists == null ? "" : String(row.assists),
           three_pointers: row.three_pointers == null ? "" : String(row.three_pointers),
           minutes: row.minutes == null ? "" : String(row.minutes),
         };
@@ -195,7 +198,7 @@ export default function TeamRegisterPage() {
     // in — a coach may log minutes for someone who did not score.
     const stats = Object.entries(box)
       .filter(([, v]) =>
-        ["points", "rebounds", "three_pointers", "minutes"].some(
+        ["points", "rebounds", "assists", "three_pointers", "minutes"].some(
           (k) => String(v?.[k] ?? "").trim() !== ""
         )
       )
@@ -203,6 +206,7 @@ export default function TeamRegisterPage() {
         player_id: Number(player_id),
         points: String(v.points ?? "").trim() === "" ? 0 : Number(v.points),
         rebounds: String(v.rebounds ?? "").trim() === "" ? null : Number(v.rebounds),
+        assists: String(v.assists ?? "").trim() === "" ? null : Number(v.assists),
         three_pointers:
           String(v.three_pointers ?? "").trim() === "" ? null : Number(v.three_pointers),
         minutes: String(v.minutes ?? "").trim() === "" ? null : Number(v.minutes),
@@ -397,7 +401,7 @@ function SessionList({
                           )}
                         </span>
                         <span className="flex items-center gap-2">
-                          {s.kind === "game" &&
+                          {isScoredKind(s.kind) &&
                             (readOnly ? (
                               <BoxScoreSummary line={box[p.id]} />
                             ) : (
@@ -454,7 +458,7 @@ function SessionList({
                   })}
                 </ul>
 
-                {s.kind === "game" && readOnly && (
+                {isScoredKind(s.kind) && readOnly && (
                   <div className="mt-4 rounded-lg border border-black/5 bg-ibc-blue/5 p-4">
                     <p className="text-xs font-bold uppercase text-ibc-blue">Résultat du match</p>
                     <p className="mt-1 text-sm text-ibc-ink/70">
@@ -468,7 +472,7 @@ function SessionList({
                   </div>
                 )}
 
-                {s.kind === "game" && !readOnly && (
+                {isScoredKind(s.kind) && !readOnly && (
                   <div className="mt-4 rounded-lg border border-black/5 bg-ibc-blue/5 p-4">
                     <p className="text-xs font-bold uppercase text-ibc-blue">Résultat du match</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">

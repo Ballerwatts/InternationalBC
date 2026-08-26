@@ -8,7 +8,11 @@
 
 export const EVENT_KINDS = [
   { value: "practice", label: "Entraînement", short: "Entr.", needsTitle: false },
-  { value: "game", label: "Match", short: "Match", needsTitle: false },
+  { value: "game", label: "Game", short: "Game", needsTitle: false },
+  // A friendly is a real game with a real box score, but it is NOT part of
+  // the league — season averages are "official games only", so it has to be
+  // a distinct kind rather than a flag someone forgets to tick.
+  { value: "friendly", label: "Friendly game", short: "Friendly", needsTitle: false },
   { value: "open_gym", label: "Open gym", short: "Gym", needsTitle: false },
   { value: "tournament", label: "Tournoi", short: "Tournoi", needsTitle: true },
   { value: "meeting", label: "Réunion", short: "Réunion", needsTitle: true },
@@ -25,8 +29,9 @@ export function kindNeedsTitle(kind) {
 /** Human label for one calendar row. */
 export function eventLabel(event) {
   const kind = BY_VALUE[event.kind];
-  if (event.kind === "game") {
-    return `Match${event.opponent ? ` vs ${event.opponent}` : ""}`;
+  if (event.kind === "game" || event.kind === "friendly") {
+    const prefix = event.kind === "friendly" ? "Friendly" : "Game";
+    return `${prefix}${event.opponent ? ` vs ${event.opponent}` : ""}`;
   }
   if (kind?.needsTitle) {
     return event.title?.trim() || kind.label;
@@ -42,4 +47,18 @@ export function eventShortLabel(event) {
 /** Games and other special events get the accent colour on the public calendar. */
 export function isHighlightKind(kind) {
   return kind !== "practice";
+}
+
+/** Kinds that carry a score and a box score. */
+export const SCORED_KINDS = ["game", "friendly"];
+
+/**
+ * Kinds that count towards season averages. A friendly is deliberately out:
+ * "PPG" on a public profile has to mean something, and mixing in a summer
+ * scratch game against a works team makes it mean less.
+ */
+export const OFFICIAL_KINDS = ["game"];
+
+export function isScoredKind(kind) {
+  return SCORED_KINDS.includes(kind);
 }

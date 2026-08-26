@@ -71,7 +71,7 @@ export async function POST(request) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       kind || "practice",
-      title || (kind === "game" ? "Match" : "Entraînement"),
+      title || (kind === "game" ? "Game" : kind === "friendly" ? "Friendly" : "Entraînement"),
       practice_date,
       start_time,
       end_time,

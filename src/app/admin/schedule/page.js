@@ -6,7 +6,8 @@ import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import { CSV_TEMPLATE } from "@/lib/game-csv";
 
 const KIND_LABELS = {
-  game: "Match",
+  game: "Game",
+  friendly: "Friendly",
   practice: "Entraînement",
   event: "Événement",
   tournament: "Tournoi",

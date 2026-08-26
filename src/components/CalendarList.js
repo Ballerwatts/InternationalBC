@@ -1,6 +1,6 @@
 "use client";
 
-// The public calendar. Client-side so the Matchs / Entraînements /
+// The public calendar. Client-side so the Games / Entraînements /
 // Événements filters are instant, and so past results can be shown in the
 // same list as upcoming fixtures without a second page.
 //
@@ -15,7 +15,8 @@ import VideoEmbed from "@/components/VideoEmbed";
 
 const FILTERS = [
   { value: "all", label: "Tout" },
-  { value: "game", label: "Matchs" },
+  { value: "game", label: "Games" },
+  { value: "friendly", label: "Friendlies" },
   { value: "practice", label: "Entraînements" },
   { value: "event", label: "Événements" },
 ];

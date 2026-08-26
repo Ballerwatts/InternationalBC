@@ -10,12 +10,25 @@ import assert from "node:assert/strict";
 const { parseGameCsv, parseKind, parseDate, parseTime, CSV_TEMPLATE } =
   await import("@/lib/game-csv");
 
-test("the shipped template parses with no errors", () => {
+test("the shipped template parses with no errors, covering every kind", () => {
   const { rows, errors } = parseGameCsv(CSV_TEMPLATE);
   assert.deepEqual(errors, []);
-  assert.deepEqual(rows.map((r) => r.kind), ["game", "practice", "event", "tournament"].flatMap(
-    (k) => (k === "game" ? ["game", "game"] : [k])
-  ));
+  const kinds = rows.map((r) => r.kind);
+  for (const k of ["game", "friendly", "practice", "event", "tournament"]) {
+    assert.ok(kinds.includes(k), `template should demonstrate a ${k} line`);
+  }
+});
+
+test("a friendly is recognised in French and English", () => {
+  for (const input of ["amical", "Amical", "friendly", "match amical", "Friendly game"]) {
+    assert.equal(parseKind(input), "friendly", `failed on ${input}`);
+  }
+});
+
+test("a friendly still needs an opponent", () => {
+  const { rows, errors } = parseGameCsv("type;date;heure;adversaire\namical;04.10.2026;20:00;");
+  assert.equal(rows.length, 0);
+  assert.match(errors[0].message, /adversaire manquant/);
 });
 
 test("kinds are recognised in French and English", () => {

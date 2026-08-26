@@ -15,6 +15,11 @@
 // label historical figures honestly.
 
 import { query } from "@/lib/db";
+import { OFFICIAL_KINDS } from "@/lib/event-kinds";
+
+// Season averages are built from official games only — a friendly has a real
+// box score but does not belong in a figure printed on a public profile.
+const OFFICIAL_PLACEHOLDERS = OFFICIAL_KINDS.map(() => "?").join(", ");
 
 /** One decimal place, or null when there is nothing to average. */
 function avg(total, games) {
@@ -38,6 +43,9 @@ export function playerStats(player, recorded) {
       rebounds: recorded.rebounds ?? null,
       rpg: avg(recorded.rebounds, recorded.reboundGames),
       reboundGames: recorded.reboundGames || 0,
+      assists: recorded.assists ?? null,
+      apg: avg(recorded.assists, recorded.assistGames),
+      assistGames: recorded.assistGames || 0,
       threePointers: recorded.threePointers ?? null,
       threePerGame: avg(recorded.threePointers, recorded.threeGames),
       threeGames: recorded.threeGames || 0,
@@ -54,6 +62,9 @@ export function playerStats(player, recorded) {
     rebounds: null,
     rpg: null,
     reboundGames: 0,
+    assists: null,
+    apg: null,
+    assistGames: 0,
     threePointers: null,
     threePerGame: null,
     threeGames: 0,
@@ -68,16 +79,22 @@ export function playerStats(player, recorded) {
  *  exactly the "recorded in how many games" figure each average needs. */
 export function recordedTotalsByPlayer() {
   const rows = query(
-    `SELECT player_id,
+    `SELECT gs.player_id,
             COUNT(*) as games,
-            COALESCE(SUM(points), 0) as points,
-            SUM(rebounds) as rebounds,
-            COUNT(rebounds) as reboundGames,
-            SUM(three_pointers) as threePointers,
-            COUNT(three_pointers) as threeGames,
-            SUM(minutes) as minutes,
-            COUNT(minutes) as minuteGames
-     FROM game_stats GROUP BY player_id`
+            COALESCE(SUM(gs.points), 0) as points,
+            SUM(gs.rebounds) as rebounds,
+            COUNT(gs.rebounds) as reboundGames,
+            SUM(gs.assists) as assists,
+            COUNT(gs.assists) as assistGames,
+            SUM(gs.three_pointers) as threePointers,
+            COUNT(gs.three_pointers) as threeGames,
+            SUM(gs.minutes) as minutes,
+            COUNT(gs.minutes) as minuteGames
+     FROM game_stats gs
+     JOIN practices pr ON pr.id = gs.practice_id
+     WHERE pr.kind IN (${OFFICIAL_PLACEHOLDERS})
+     GROUP BY gs.player_id`,
+    OFFICIAL_KINDS
   );
   const byPlayer = {};
   for (const r of rows) byPlayer[r.player_id] = r;
@@ -88,15 +105,19 @@ export function recordedTotalsByPlayer() {
 export function statsForPlayer(player) {
   const rows = query(
     `SELECT COUNT(*) as games,
-            COALESCE(SUM(points), 0) as points,
-            SUM(rebounds) as rebounds,
-            COUNT(rebounds) as reboundGames,
-            SUM(three_pointers) as threePointers,
-            COUNT(three_pointers) as threeGames,
-            SUM(minutes) as minutes,
-            COUNT(minutes) as minuteGames
-     FROM game_stats WHERE player_id = ?`,
-    [player.id]
+            COALESCE(SUM(gs.points), 0) as points,
+            SUM(gs.rebounds) as rebounds,
+            COUNT(gs.rebounds) as reboundGames,
+            SUM(gs.assists) as assists,
+            COUNT(gs.assists) as assistGames,
+            SUM(gs.three_pointers) as threePointers,
+            COUNT(gs.three_pointers) as threeGames,
+            SUM(gs.minutes) as minutes,
+            COUNT(gs.minutes) as minuteGames
+     FROM game_stats gs
+     JOIN practices pr ON pr.id = gs.practice_id
+     WHERE gs.player_id = ? AND pr.kind IN (${OFFICIAL_PLACEHOLDERS})`,
+    [player.id, ...OFFICIAL_KINDS]
   );
   return playerStats(player, rows[0]);
 }

@@ -133,6 +133,7 @@ export function addMinutes(hhmm, minutes) {
  */
 const KIND_ALIASES = {
   game: ["match", "matchs", "game", "games", "rencontre"],
+  friendly: ["amical", "amicaux", "friendly", "match amical", "friendly game"],
   practice: ["entrainement", "entrainements", "practice", "training", "seance"],
   event: ["evenement", "evenements", "event", "events", "club", "sortie"],
   tournament: ["tournoi", "tournois", "tournament", "cup", "coupe"],
@@ -247,7 +248,7 @@ export function parseGameCsv(text, { defaultDurationMinutes = 120, defaultKind =
 
     // A game needs someone to play; an event or tournament needs a name.
     // A practice needs neither — it is just a slot in a hall.
-    if (kind === "game" && !opponent) {
+    if ((kind === "game" || kind === "friendly") && !opponent) {
       errors.push({ line: lineNo, message: "adversaire manquant pour un match" });
       return;
     }
@@ -285,6 +286,7 @@ export function parseGameCsv(text, { defaultDurationMinutes = 120, defaultKind =
 export const CSV_TEMPLATE = [
   "type;equipe;date;heure;fin;adversaire;titre;salle;domicile;notes",
   "match;IBBC Men (2LCM);04.10.2026;20:00;;BBC Meyrin;;École Raymond-Uldry;D;",
+  "amical;IBBC Men (3LCM);27.09.2026;19:00;;Lancy Basket;;Collège Sismondi;D;pré-saison",
   "match;IBBC Women (NL1);11.10.2026;18:30;;Lancy Basket;;Salle du Petit-Lancy;E;déplacement",
   "entrainement;IBBC Youth Men's Team (U18M);15.10.2026;18:00;19:30;;;Collège Sismondi;;",
   "evenement;;20.12.2026;19:00;23:00;;Souper de Noël du club;Restaurant Mama & Zita;;",

@@ -68,21 +68,23 @@ export async function PUT(request, { params }) {
       return Math.min(Math.max(0, Math.round(n)), max);
     };
     const rebounds = optional(s.rebounds, 999);
+    const assists = optional(s.assists, 99);
     const threes = optional(s.three_pointers, 99);
     // A basketball game is 40 minutes plus overtime; 99 is a generous ceiling
     // that still catches a mistyped 400.
     const minutes = optional(s.minutes, 99);
     keep.push(playerId);
     run(
-      `INSERT INTO game_stats (practice_id, player_id, points, rebounds, three_pointers, minutes, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO game_stats (practice_id, player_id, points, rebounds, assists, three_pointers, minutes, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(practice_id, player_id) DO UPDATE SET
          points = excluded.points,
          rebounds = excluded.rebounds,
+         assists = excluded.assists,
          three_pointers = excluded.three_pointers,
          minutes = excluded.minutes,
          updated_at = datetime('now')`,
-      [params.id, playerId, points, rebounds, threes, minutes]
+      [params.id, playerId, points, rebounds, assists, threes, minutes]
     );
   }
 

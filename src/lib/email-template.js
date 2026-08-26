@@ -108,6 +108,35 @@ function introBlock(block) {
 </tr>`;
 }
 
+/**
+ * Who stood out, from what the coach typed into the register. Points and
+ * 3-pointers are what a club talks about after a game, so they are given the
+ * accent; the rest are listed plainly and only when they were recorded.
+ *
+ * Falls back to the old single top-scorer line for an issue built before the
+ * box score existed, so old newsletters still render.
+ */
+function leadersHtml(game) {
+  const leaders = Array.isArray(game.leaders) ? game.leaders : [];
+  if (leaders.length === 0) {
+    return game.top_scorer
+      ? `<p style="margin:6px 0 0 0;font-size:13px;color:${MUTED};">Top scorer: <span style="color:${INK};font-weight:bold;">${escapeHtml(game.top_scorer.name)}</span> — ${escapeHtml(String(game.top_scorer.points))} pts</p>`
+      : "";
+  }
+  const HEADLINE = new Set(["points", "three_pointers"]);
+  const items = leaders
+    .map((l) => {
+      const strong = HEADLINE.has(l.category);
+      const who = escapeHtml(l.names.join(" & "));
+      const value = `${escapeHtml(String(l.value))} ${escapeHtml(l.short)}`;
+      return `<span style="display:inline-block;margin:0 10px 4px 0;font-size:${strong ? "13px" : "12px"};color:${strong ? INK : MUTED};">
+        <span style="font-weight:bold;color:${strong ? BLUE : INK};">${value}</span> ${who}
+      </span>`;
+    })
+    .join("");
+  return `<p style="margin:8px 0 0 0;font-family:${FONT};line-height:20px;">${items}</p>`;
+}
+
 function resultsBlock(block) {
   const games = block.games || [];
   if (!games.length) return "";
@@ -125,10 +154,10 @@ function resultsBlock(block) {
       <p style="margin:0 0 2px 0;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${MUTED};">${escapeHtml(formatDate(g.practice_date))}</p>
       <p style="margin:0;font-size:16px;font-weight:bold;color:${INK};">
         ${badge ? `<span style="display:inline-block;min-width:20px;padding:1px 7px;margin-right:8px;border-radius:4px;background-color:${badgeColor};color:${WHITE};font-size:12px;">${badge}</span>` : ""}
-        IBBC vs ${escapeHtml(g.opponent || "—")}
+        IBBC vs ${escapeHtml(g.opponent || "—")}${g.friendly ? ` <span style="font-size:11px;font-weight:normal;color:${MUTED};">(friendly)</span>` : ""}
         <span style="color:${BLUE};">&nbsp;${escapeHtml(score)}</span>
       </p>
-      ${g.top_scorer ? `<p style="margin:6px 0 0 0;font-size:13px;color:${MUTED};">Top scorer: <span style="color:${INK};font-weight:bold;">${escapeHtml(g.top_scorer.name)}</span> — ${escapeHtml(String(g.top_scorer.points))} pts</p>` : ""}
+      ${leadersHtml(g)}
       ${g.recap ? `<p style="margin:8px 0 0 0;padding-left:10px;border-left:3px solid ${BORDER};font-size:14px;line-height:21px;color:${INK};font-style:italic;">${escapeHtml(g.recap)}</p>` : ""}
     </td>
   </tr>
@@ -269,9 +298,13 @@ function blockText(block) {
         "RESULTS",
         ...games.map((g) => {
           const score = g.score_us == null ? "" : ` ${g.score_us}-${g.score_them}`;
-          const top = g.top_scorer ? ` | Top scorer: ${g.top_scorer.name} (${g.top_scorer.points} pts)` : "";
+          const leaders = Array.isArray(g.leaders) && g.leaders.length
+            ? ` | ${g.leaders.map((l) => `${l.value} ${l.short}: ${l.names.join(" & ")}`).join(", ")}`
+            : g.top_scorer
+            ? ` | Top scorer: ${g.top_scorer.name} (${g.top_scorer.points} pts)`
+            : "";
           const recap = g.recap ? `\n  "${g.recap}"` : "";
-          return `- ${formatDate(g.practice_date)}: IBBC vs ${g.opponent || "—"}${score}${top}${recap}`;
+          return `- ${formatDate(g.practice_date)}: IBBC vs ${g.opponent || "—"}${g.friendly ? " (friendly)" : ""}${score}${leaders}${recap}`;
         }),
       ].join("\n");
     }
