@@ -30,9 +30,10 @@ export async function GET() {
   if (user.role === "admin") {
     return NextResponse.json(
       query(
-        `SELECT r.*, u.name as user_name, u.player_id
+        `SELECT r.*, u.name as user_name, u.player_id, m.name as marked_by_name
          FROM practice_rsvp r
          JOIN users u ON u.id = r.user_id
+         LEFT JOIN users m ON m.id = r.marked_by
          ORDER BY r.practice_id ASC`
       )
     );
@@ -41,9 +42,10 @@ export async function GET() {
   if (user.role === "coach") {
     return NextResponse.json(
       query(
-        `SELECT r.*, u.name as user_name, u.player_id
+        `SELECT r.*, u.name as user_name, u.player_id, m.name as marked_by_name
          FROM practice_rsvp r
          JOIN users u ON u.id = r.user_id
+         LEFT JOIN users m ON m.id = r.marked_by
          WHERE u.team_id IS ?
          ORDER BY r.practice_id ASC`,
         [user.team_id ?? null]
@@ -70,7 +72,15 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json(query("SELECT * FROM practice_rsvp WHERE user_id = ?", [user.id]));
+  return NextResponse.json(
+    query(
+      `SELECT r.*, m.name as marked_by_name
+       FROM practice_rsvp r
+       LEFT JOIN users m ON m.id = r.marked_by
+       WHERE r.user_id = ?`,
+      [user.id]
+    )
+  );
 }
 
 // Upsert a RSVP for one practice. By default this is the logged-in user's
@@ -95,15 +105,23 @@ export async function POST(request) {
   // availability_id is set to NULL on purpose: this mark was clicked by a
   // human, so deleting a declared absence must never withdraw it again.
   // See src/lib/absences.js for the two-state contract.
+  // NULL when someone marks themselves; the acting user's id when a coach or
+  // admin marks on a player's behalf. The mark counts the same either way —
+  // this only records who made it, which is what the register shows as
+  // "noté par …". That branch existed and rendered nothing, because the
+  // column was declared and migrated but never written.
+  const markedBy = Number(targetUserId) === Number(user.id) ? null : user.id;
+
   run(
-    `INSERT INTO practice_rsvp (practice_id, user_id, status, note, availability_id, updated_at)
-     VALUES (?, ?, ?, ?, NULL, datetime('now'))
+    `INSERT INTO practice_rsvp (practice_id, user_id, status, note, availability_id, marked_by, updated_at)
+     VALUES (?, ?, ?, ?, NULL, ?, datetime('now'))
      ON CONFLICT(practice_id, user_id) DO UPDATE SET
        status = excluded.status,
        note = excluded.note,
        availability_id = NULL,
+       marked_by = excluded.marked_by,
        updated_at = datetime('now')`,
-    [practice_id, targetUserId, status, note || null]
+    [practice_id, targetUserId, status, note || null, markedBy]
   );
 
   return NextResponse.json({ ok: true });

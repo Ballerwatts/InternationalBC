@@ -6,11 +6,12 @@
 // up rows still 'queued' or 'failed' — which is why "Retry failed" and
 // "Send" are the same operation and nobody gets two copies.
 
-import { query, get, run, getAllSettings } from "@/lib/db";
+import { query, get, run, getAllSettings, getHomeGym } from "@/lib/db";
 import { sendBatch } from "@/lib/email";
 import { renderNewsletter } from "@/lib/email-template";
 import { resolveRecipients } from "@/lib/newsletter-audience";
 import { unsubscribeUrl } from "@/lib/unsubscribe";
+import { publishNewsletterPost } from "@/lib/newsletter-post";
 
 export function siteUrl() {
   return String(process.env.SITE_URL || "https://internationalbc.fly.dev").replace(/\/+$/, "");
@@ -28,11 +29,16 @@ export function parseBlocks(newsletter) {
 /** club + team context every render needs, read once per send. */
 export function renderContext(newsletter) {
   const settings = getAllSettings();
+  const homeGym = getHomeGym();
   const team = newsletter.team_id ? get("SELECT * FROM teams WHERE id = ?", [newsletter.team_id]) : null;
   return {
     club: {
       name: settings.club_name || "International Basketball Club Genève",
-      gym: settings.gym_name || "École Raymond Uldry, Grand-Lancy",
+      // The club's main hall, from the gyms table. The old hardcoded string
+      // named the wrong commune and never changed when a venue did.
+      gym: homeGym
+        ? [homeGym.name, homeGym.address].filter(Boolean).join(", ")
+        : settings.practice_location_name || "",
       crest_url: "/logo.png",
     },
     team,
@@ -148,5 +154,10 @@ export async function sendNewsletter(newsletterId) {
     [status, status, newsletterId]
   );
 
-  return { sent, failed, skipped, status, attempted: results.length };
+  // Mirror it onto the home page once it has actually gone out, not before —
+  // a draft that never sends should not appear as club news.
+  let post = { posted: false, reason: "not_sent" };
+  if (status === "sent") post = publishNewsletterPost(newsletterId);
+
+  return { sent, failed, skipped, status, attempted: results.length, post };
 }

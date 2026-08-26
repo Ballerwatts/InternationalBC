@@ -19,10 +19,10 @@ export const ADMIN_GROUPS = [
     items: [
       { href: "/admin/hero", label: "Hero" },
       { href: "/admin/announcements", label: "Announcements" },
+      { href: "/admin/newsletter", label: "Newsletter" },
       { href: "/admin/sponsors", label: "Sponsors" },
       { href: "/admin/gyms", label: "Gyms" },
       { href: "/admin/teams", label: "Teams" },
-      { href: "/admin/newsletter", label: "Newsletter" },
       { href: "/admin/emails", label: "Email log" },
       // The Instagram gallery pulls in a third-party embed script, so it
       // stays locked to the super-admin even for a marketing delegate.

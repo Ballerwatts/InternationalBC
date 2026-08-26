@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, get } from "@/lib/db";
+import { query, get, getAllSettings } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { buildIcsFeed } from "@/lib/ics";
@@ -30,6 +30,14 @@ async function handle(request) {
     if (provided !== secret) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+  }
+
+  // An admin can switch this off from /admin/emails without touching the
+  // scheduler. Two automatic sends land the same morning, so "too many
+  // emails" is a real way to lose the list — turning one off is a setting,
+  // not a deploy. 200 rather than an error: the cron did its job by asking.
+  if ((getAllSettings().weekly_reminder_enabled ?? "1") !== "1") {
+    return NextResponse.json({ ok: true, skipped: "disabled", setting: "weekly_reminder_enabled" });
   }
 
   const monday = mondayOfCurrentWeek();

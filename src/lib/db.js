@@ -504,6 +504,19 @@ function migrate(db) {
   addColumnIfMissing(db, "game_stats", "rebounds", "INTEGER");
   addColumnIfMissing(db, "game_stats", "three_pointers", "INTEGER");
   addColumnIfMissing(db, "game_stats", "minutes", "INTEGER");
+
+  // A sent issue can also become a post on the public home page. The post is
+  // composed separately from the e-mail — a different title, a comment, one
+  // photo, one video — because what reads well in an inbox is rarely what
+  // reads well on a home page.
+  addColumnIfMissing(db, "newsletters", "post_enabled", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing(db, "newsletters", "post_title", "TEXT");
+  addColumnIfMissing(db, "newsletters", "post_body", "TEXT");
+  addColumnIfMissing(db, "newsletters", "post_image_data_url", "TEXT");
+  addColumnIfMissing(db, "newsletters", "post_video_url", "TEXT");
+  // Links a home-page post back to the issue that produced it, so re-sending
+  // updates that post instead of stacking a second copy on the page.
+  addColumnIfMissing(db, "announcements", "newsletter_id", "INTEGER REFERENCES newsletters(id) ON DELETE SET NULL");
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");
@@ -593,6 +606,11 @@ function addColumnIfMissing(db, table, column, definition) {
 }
 
 const DEFAULT_SETTINGS = {
+  // Automatic Monday sends. Both default ON so behaviour is unchanged for a
+  // database that predates them; "0" turns one off without touching the
+  // scheduler. A missing key counts as ON for the same reason.
+  weekly_reminder_enabled: "1",
+  weekly_newsletter_enabled: "1",
   // Newsletter chrome, editable from /admin/newsletter. Free text only —
   // the crest, the colours and the unsubscribe link are not editable.
   newsletter_header_text: "",

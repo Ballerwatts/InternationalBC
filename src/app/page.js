@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAllSettings, query } from "@/lib/db";
+import { getAllSettings, query, getHomeGym } from "@/lib/db";
 import PracticeMap from "@/components/PracticeMap";
 import HeroSlider from "@/components/HeroSlider";
 import InstagramGallery from "@/components/InstagramGallery";
@@ -23,6 +23,7 @@ function formatDate(dateStr) {
 
 export default function HomePage() {
   const settings = getAllSettings();
+  const homeGym = getHomeGym();
   const announcements = query(
     "SELECT * FROM announcements WHERE published = 1 ORDER BY created_at DESC LIMIT 3"
   );
@@ -140,17 +141,24 @@ export default function HomePage() {
             <h3 className="font-display text-xl font-bold uppercase text-ibc-blue">
               Practice location
             </h3>
+            {/* The club's main hall, from the gyms table — so editing an
+                address in /admin/gyms changes it here. Falls back to the
+                legacy free-text settings only for a database with no gyms. */}
             <p className="mt-2 text-sm text-ibc-ink/70">
-              {settings.practice_location_name} — {settings.practice_location_address}
+              {homeGym
+                ? [homeGym.name, homeGym.address].filter(Boolean).join(" — ")
+                : [settings.practice_location_name, settings.practice_location_address]
+                    .filter(Boolean)
+                    .join(" — ")}
             </p>
-            {settings.gym_access_notes && (
+            {(homeGym?.notes || settings.gym_access_notes) && (
               <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/60">
-                {settings.gym_access_notes}
+                {homeGym?.notes || settings.gym_access_notes}
               </p>
             )}
             <PracticeMap
-              address={settings.practice_location_address}
-              mapsUrl={settings.gym_maps_url}
+              address={homeGym?.address || settings.practice_location_address}
+              mapsUrl={homeGym?.maps_url || settings.gym_maps_url}
             />
           </div>
         </div>

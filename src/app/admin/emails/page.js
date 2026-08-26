@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AutoSendToggles from "@/components/AutoSendToggles";
 
 const STATUS_STYLES = {
   sent: "bg-green-100 text-green-700",
@@ -140,6 +141,8 @@ export default function EmailLogPage() {
 
   return (
     <div className="max-w-6xl">
+      <AutoSendToggles />
+
       <h1 className="font-display text-3xl font-extrabold uppercase text-ibc-blue">Email log</h1>
       <p className="mt-1 text-sm text-ibc-ink/60">
         Every message the site sends — newsletters, Monday reminders, account mail — with what the mail

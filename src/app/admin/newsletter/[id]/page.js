@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import NewsletterPostPanel from "@/components/NewsletterPostPanel";
 
 // Careful: this file is a client component, so it must never import
 // anything that reaches src/lib/db.js. The preview is rendered server-side
@@ -468,6 +469,10 @@ export default function ComposeNewsletterPage({ params }) {
           </div>
         </div>
       )}
+
+      <div className="mt-6">
+        {issue && <NewsletterPostPanel newsletter={issue} />}
+      </div>
     </div>
   );
 }
