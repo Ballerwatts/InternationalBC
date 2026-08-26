@@ -18,6 +18,30 @@ export default function NewsletterListPage() {
   const [creating, setCreating] = useState(false);
   const [newTeamId, setNewTeamId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [posting, setPosting] = useState(null);
+  const [postMsg, setPostMsg] = useState("");
+
+  // One click puts an issue on the home page without sending it and without
+  // composing anything — writing a whole newsletter to publish one item of
+  // club news is more work than the job deserves. What it creates is a normal
+  // announcement, managed from Announcements from then on.
+  async function togglePost(item) {
+    setPosting(item.id);
+    setPostMsg("");
+    const res = await fetch(`/api/newsletters/${item.id}/post`, {
+      method: item.post_enabled ? "DELETE" : "POST",
+    });
+    setPosting(null);
+    setPostMsg(
+      !res.ok
+        ? "Échec — réessayez."
+        : item.post_enabled
+        ? "Retiré de la page d'accueil."
+        : "Publié — modifiable depuis Announcements."
+    );
+    setTimeout(() => setPostMsg(""), 4000);
+    refresh();
+  }
 
   function refresh() {
     fetch("/api/newsletters").then((r) => r.json()).then((d) => setIssues(Array.isArray(d) ? d : []));
@@ -100,6 +124,7 @@ export default function NewsletterListPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Recipients</th>
                 <th className="px-4 py-3">Sent</th>
+                <th className="px-4 py-3">Page d'accueil</th>
               </tr>
             </thead>
             <tbody>
@@ -129,10 +154,27 @@ export default function NewsletterListPage() {
                     {n.recipient_count ? <span className="text-ibc-ink/40"> / {n.recipient_count}</span> : null}
                   </td>
                   <td className="px-4 py-3 text-xs text-ibc-ink/50">{n.sent_at ? n.sent_at.slice(0, 16) : "—"}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      disabled={posting === n.id}
+                      onClick={() => togglePost(n)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase transition disabled:opacity-50 ${
+                        n.post_enabled
+                          ? "bg-green-600 text-white hover:brightness-110"
+                          : "border border-ibc-blue/30 text-ibc-blue hover:bg-ibc-blue/10"
+                      }`}
+                    >
+                      {posting === n.id ? "…" : n.post_enabled ? "En ligne" : "Publier"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+        {postMsg && (
+          <p className="mt-3 text-xs font-semibold text-ibc-blue">{postMsg}</p>
         )}
       </div>
     </div>

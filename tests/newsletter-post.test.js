@@ -85,3 +85,38 @@ test("switching the post off takes it down", () => {
   assert.equal(r.posted, false);
   assert.equal(postsFor(issueId).length, 0, "a disabled post must not linger on the home page");
 });
+
+// --- ownership: Announcements takes over once someone edits there ---
+
+test("editing the post from Announcements detaches it from the issue", () => {
+  run("UPDATE newsletters SET post_enabled = 1, post_title = ? WHERE id = ?", ["Auto", issueId]);
+  publishNewsletterPost(issueId);
+  const post = postsFor(issueId)[0];
+
+  // What /api/announcements/[id] PUT does.
+  run(
+    `UPDATE announcements
+     SET title = ?, body = ?, published = ?,
+         post_detached = CASE WHEN newsletter_id IS NULL THEN 0 ELSE 1 END
+     WHERE id = ?`,
+    ["Réécrit à la main", "Mon texte", 0, post.id]
+  );
+
+  // A later publish must not revert the wording or re-publish it.
+  publishNewsletterPost(issueId);
+  const after = postsFor(issueId)[0];
+  assert.equal(after.title, "Réécrit à la main");
+  assert.equal(after.body, "Mon texte");
+  assert.equal(after.published, 0, "an unpublish done here must stick");
+  assert.equal(postsFor(issueId).length, 1);
+});
+
+test("deleting it from Announcements switches the issue's post off for good", () => {
+  const post = postsFor(issueId)[0];
+  // What /api/announcements/[id] DELETE does.
+  run("DELETE FROM announcements WHERE id = ?", [post.id]);
+  run("UPDATE newsletters SET post_enabled = 0 WHERE id = ?", [issueId]);
+
+  publishNewsletterPost(issueId);
+  assert.equal(postsFor(issueId).length, 0, "a deleted post must not come back on re-send");
+});

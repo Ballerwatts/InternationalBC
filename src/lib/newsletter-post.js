@@ -19,7 +19,17 @@ export function publishNewsletterPost(newsletterId) {
   const n = get("SELECT * FROM newsletters WHERE id = ?", [newsletterId]);
   if (!n) return { posted: false, reason: "not_found" };
 
-  const existing = get("SELECT id FROM announcements WHERE newsletter_id = ?", [newsletterId]);
+  const existing = get(
+    "SELECT id, post_detached FROM announcements WHERE newsletter_id = ?",
+    [newsletterId]
+  );
+
+  // Once someone has edited the post from /admin/announcements, that screen
+  // owns it. Re-publishing must not quietly undo their wording, their photo,
+  // or their decision to unpublish it.
+  if (existing?.post_detached) {
+    return { posted: true, announcementId: existing.id, detached: true };
+  }
 
   // Turned off after a post was made: take it down rather than leave a
   // stale one on the home page.

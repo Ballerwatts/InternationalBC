@@ -140,6 +140,20 @@ export default function AnnouncementsAdminPage() {
                         brouillon
                       </span>
                     )}
+                    {/* Where it came from, and who owns it now. Once edited
+                        here, a re-send of the newsletter leaves it alone. */}
+                    {a.newsletter_id && (
+                      <span
+                        className="ml-1 rounded bg-ibc-blue/10 px-2 py-0.5 text-xs font-semibold text-ibc-blue"
+                        title={
+                          a.post_detached
+                            ? "Modifiée ici — un nouvel envoi de la newsletter ne l'écrasera pas."
+                            : "Créée depuis la newsletter. La modifier ici en prend le contrôle."
+                        }
+                      >
+                        {a.post_detached ? "newsletter · modifiée ici" : "depuis la newsletter"}
+                      </span>
+                    )}
                   </p>
                   <p className="mt-1 whitespace-pre-line text-sm text-ibc-ink/70">{a.body}</p>
                 </div>

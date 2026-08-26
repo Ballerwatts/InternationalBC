@@ -517,6 +517,11 @@ function migrate(db) {
   // Links a home-page post back to the issue that produced it, so re-sending
   // updates that post instead of stacking a second copy on the page.
   addColumnIfMissing(db, "announcements", "newsletter_id", "INTEGER REFERENCES newsletters(id) ON DELETE SET NULL");
+  // Set the moment an admin edits a newsletter-born post from
+  // /admin/announcements. From then on that screen owns it and a re-send
+  // leaves it alone — otherwise every edit would be silently reverted by the
+  // next publish, which is the worst kind of bug: invisible until it isn't.
+  addColumnIfMissing(db, "announcements", "post_detached", "INTEGER NOT NULL DEFAULT 0");
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");
