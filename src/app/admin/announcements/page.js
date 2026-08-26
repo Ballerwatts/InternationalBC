@@ -48,7 +48,9 @@ export default function AnnouncementsAdminPage() {
       title: item.title,
       body: item.body,
       published: item.published,
+      in_newsletter: item.in_newsletter ?? 1,
       image_data_url: item.image_data_url || "",
+      video_url: item.video_url || "",
     });
   }
 

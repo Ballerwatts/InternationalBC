@@ -7,9 +7,13 @@ import { get, getAllSettings } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request) {
   const denied = await requireArea("marketing");
   if (denied) return denied;
+
+  // Archived issues are retired, not deleted — out of the default view,
+  // still there behind ?archived=1.
+  const includeArchived = new URL(request.url).searchParams.get("archived") === "1";
 
   // Recipient counts come from the frozen list, not a re-resolve: the list
   // is what was actually mailed.
@@ -21,6 +25,7 @@ export async function GET() {
               (SELECT COUNT(*) FROM newsletter_recipients r WHERE r.newsletter_id = n.id) AS recipient_count
        FROM newsletters n
        LEFT JOIN teams t ON t.id = n.team_id
+       WHERE ${includeArchived ? "1 = 1" : "n.archived_at IS NULL"}
        ORDER BY n.created_at DESC`
     )
   );
@@ -35,6 +40,25 @@ export async function POST(request) {
   const teamId = body.team_id ? Number(body.team_id) : null;
   const weekStart = body.week_start_date || mondayOf();
   const team = teamId ? get("SELECT * FROM teams WHERE id = ?", [teamId]) : null;
+
+  // One issue per squad per week. The Monday cron already refused to create
+  // a second; the button did not, which is how four drafts became seven with
+  // two exact duplicates among them.
+  const clash = get(
+    `SELECT id, subject FROM newsletters
+     WHERE week_start_date = ? AND team_id IS ? AND archived_at IS NULL`,
+    [weekStart, teamId]
+  );
+  if (clash && !body.force) {
+    return NextResponse.json(
+      {
+        error: "duplicate",
+        message: "Un numéro existe déjà pour cette équipe et cette semaine.",
+        newsletter_id: clash.id,
+      },
+      { status: 409 }
+    );
+  }
 
   const subject =
     body.subject || defaultSubject({ team, weekStart, settings: getAllSettings() });

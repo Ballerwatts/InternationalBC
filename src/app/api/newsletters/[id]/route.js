@@ -94,6 +94,52 @@ export async function DELETE(request, { params }) {
   const denied = await requireArea("marketing");
   if (denied) return denied;
 
+  const issue = get("SELECT id, status, sent_at FROM newsletters WHERE id = ?", [params.id]);
+  if (!issue) return NextResponse.json({ ok: true, alreadyGone: true });
+
+  // A sent issue has delivery records against real members. Losing the
+  // record of what went to whom is not a tidy-up, so it can only be
+  // archived — which hides it and takes its home-page post down.
+  if (issue.status === "sent" || issue.sent_at) {
+    return NextResponse.json(
+      {
+        error: "already_sent",
+        message:
+          "Ce numéro a été envoyé — il peut être archivé, pas supprimé, pour conserver la trace des destinataires.",
+      },
+      { status: 409 }
+    );
+  }
+
+  // Its home-page post goes with it.
+  run("DELETE FROM announcements WHERE newsletter_id = ?", [params.id]);
   run("DELETE FROM newsletters WHERE id = ?", [params.id]);
   return NextResponse.json({ ok: true });
+}
+
+/** Archive or restore. Archiving also pulls the home-page post down. */
+export async function PATCH(request, { params }) {
+  const denied = await requireArea("marketing");
+  if (denied) return denied;
+
+  const body = await request.json().catch(() => ({}));
+
+  if (!("archived" in body)) {
+    return NextResponse.json({ error: "rien à faire" }, { status: 400 });
+  }
+
+  if (body.archived) {
+    run(
+      "UPDATE newsletters SET archived_at = datetime('now'), post_enabled = 0, updated_at = datetime('now') WHERE id = ?",
+      [params.id]
+    );
+    // Retiring an issue retires it everywhere, in one action.
+    publishNewsletterPost(Number(params.id));
+    return NextResponse.json({ ok: true, archived: true });
+  }
+
+  run("UPDATE newsletters SET archived_at = NULL, updated_at = datetime('now') WHERE id = ?", [
+    params.id,
+  ]);
+  return NextResponse.json({ ok: true, archived: false });
 }

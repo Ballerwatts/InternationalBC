@@ -19,6 +19,33 @@ export default function NewsletterListPage() {
   const [newTeamId, setNewTeamId] = useState("");
   const [busy, setBusy] = useState(false);
   const [posting, setPosting] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
+
+  async function archive(item, archived) {
+    const res = await fetch(`/api/newsletters/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archived }),
+    });
+    setPostMsg(
+      !res.ok
+        ? "Échec."
+        : archived
+        ? "Archivé — retiré de la liste et de la page d'accueil."
+        : "Restauré."
+    );
+    setTimeout(() => setPostMsg(""), 4000);
+    refresh();
+  }
+
+  async function remove(item) {
+    if (!confirm(`Supprimer définitivement « ${item.subject} » ?`)) return;
+    const res = await fetch(`/api/newsletters/${item.id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setPostMsg(res.ok ? "Supprimé." : data.message || "Échec.");
+    setTimeout(() => setPostMsg(""), 6000);
+    refresh();
+  }
   const [postMsg, setPostMsg] = useState("");
 
   // One click puts an issue on the home page without sending it and without
@@ -44,13 +71,13 @@ export default function NewsletterListPage() {
   }
 
   function refresh() {
-    fetch("/api/newsletters").then((r) => r.json()).then((d) => setIssues(Array.isArray(d) ? d : []));
+    fetch(`/api/newsletters${showArchived ? "?archived=1" : ""}`).then((r) => r.json()).then((d) => setIssues(Array.isArray(d) ? d : []));
   }
 
   useEffect(() => {
     refresh();
     fetch("/api/admin/teams").then((r) => r.json()).then((d) => setTeams(Array.isArray(d) ? d : []));
-  }, []);
+  }, [showArchived]);;
 
   async function createIssue(e) {
     e.preventDefault();
@@ -110,7 +137,17 @@ export default function NewsletterListPage() {
         </form>
       )}
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
+          <label className="flex items-center gap-2 text-xs font-semibold uppercase text-ibc-ink/60">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            Afficher les archivés
+          </label>
+        </div>
+        <div className="mt-6 overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm">
         {issues.length === 0 ? (
           <p className="p-8 text-center text-sm text-ibc-ink/50">
             No issues yet. Create one, or wait for Monday&apos;s automatic draft.
@@ -125,6 +162,7 @@ export default function NewsletterListPage() {
                 <th className="px-4 py-3">Recipients</th>
                 <th className="px-4 py-3">Sent</th>
                 <th className="px-4 py-3">Page d'accueil</th>
+                <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -134,6 +172,11 @@ export default function NewsletterListPage() {
                     <Link href={`/admin/newsletter/${n.id}`} className="font-bold text-ibc-blue hover:underline">
                       {n.subject}
                     </Link>
+                    {n.archived_at && (
+                      <span className="ml-2 rounded bg-black/10 px-2 py-0.5 text-xs font-semibold text-ibc-ink/55">
+                        archivé
+                      </span>
+                    )}
                     {n.week_start_date && (
                       <span className="ml-2 text-xs text-ibc-ink/40">week of {n.week_start_date}</span>
                     )}
@@ -167,6 +210,38 @@ export default function NewsletterListPage() {
                     >
                       {posting === n.id ? "…" : n.post_enabled ? "En ligne" : "Publier"}
                     </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3 text-xs font-bold uppercase">
+                      {n.archived_at ? (
+                        <button
+                          type="button"
+                          onClick={() => archive(n, false)}
+                          className="text-ibc-blue hover:underline"
+                        >
+                          Restaurer
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => archive(n, true)}
+                          className="text-ibc-ink/50 hover:underline"
+                        >
+                          Archiver
+                        </button>
+                      )}
+                      {/* A sent issue can only be archived — its delivery
+                          record is not ours to destroy. */}
+                      {n.status !== "sent" && !n.sent_at && (
+                        <button
+                          type="button"
+                          onClick={() => remove(n)}
+                          className="text-red-500 hover:underline"
+                        >
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

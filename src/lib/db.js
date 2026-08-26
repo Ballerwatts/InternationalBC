@@ -523,6 +523,19 @@ function migrate(db) {
   // leaves it alone — otherwise every edit would be silently reverted by the
   // next publish, which is the worst kind of bug: invisible until it isn't.
   addColumnIfMissing(db, "announcements", "post_detached", "INTEGER NOT NULL DEFAULT 0");
+
+  // News is written once and has two independent switches: `published` puts
+  // it on the site, `in_newsletter` puts it in the weekly e-mail. They are
+  // separate on purpose — a fixture change belongs in the e-mail and not
+  // necessarily on the home page, and a photo gallery the other way round.
+  // Defaults to 1 so existing announcements keep reaching the newsletter,
+  // which is what they did before the switch existed.
+  addColumnIfMissing(db, "announcements", "in_newsletter", "INTEGER NOT NULL DEFAULT 1");
+
+  // Archiving retires an issue: out of the list, and its home-page post
+  // comes down with it. Sent issues can only ever be archived, never
+  // deleted — the record of what went to whom is not ours to destroy.
+  addColumnIfMissing(db, "newsletters", "archived_at", "TEXT");
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");

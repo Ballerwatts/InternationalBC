@@ -161,13 +161,16 @@ export function buildBlocks({ teamId = null, weekStart = mondayOf(), siteUrl = "
     [weekStart, ...tf.params]
   );
 
-  /* announcements — this squad's, plus club-wide ones */
+  /* news — items ticked for the newsletter, this squad's plus club-wide.
+     Keyed on in_newsletter, NOT on published: the two switches are
+     independent, so an item can go in the e-mail without being on the site
+     and the other way round. */
   const news = query(
     teamId
       ? `SELECT * FROM announcements
-         WHERE published = 1 AND (team_id = ? OR team_id IS NULL)
+         WHERE in_newsletter = 1 AND (team_id = ? OR team_id IS NULL)
          ORDER BY created_at DESC LIMIT 3`
-      : `SELECT * FROM announcements WHERE published = 1 ORDER BY created_at DESC LIMIT 3`,
+      : `SELECT * FROM announcements WHERE in_newsletter = 1 ORDER BY created_at DESC LIMIT 3`,
     teamId ? [Number(teamId)] : []
   ).map((n) => ({
     id: n.id,
