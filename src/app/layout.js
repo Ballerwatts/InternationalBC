@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import InstallAppPrompt from "@/components/InstallAppPrompt";
 
 // Note: intentionally using system font stacks (defined in globals.css)
 // instead of next/font/google — this keeps the production build fully
@@ -47,6 +48,7 @@ export default function RootLayout({ children }) {
           <main className="flex-1">{children}</main>
           <Footer />
           <ServiceWorkerRegistration />
+          <InstallAppPrompt />
         </LanguageProvider>
       </body>
     </html>
