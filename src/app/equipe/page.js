@@ -3,6 +3,7 @@ import { query } from "@/lib/db";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizePlayers } from "@/lib/player-privacy";
 import TeamAccordion from "@/components/TeamAccordion";
+import SponsorStrip from "@/components/SponsorStrip";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Teams — International Basketball Club Geneva (IBBC)" };
@@ -19,6 +20,7 @@ export default async function TeamPage() {
   const unassigned = players.filter((p) => !p.team_id);
 
   return (
+    <>
     <div className="mx-auto max-w-6xl px-4 py-14">
       <header className="mb-10 text-center">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-ibc-blue/70">
@@ -45,5 +47,7 @@ export default async function TeamPage() {
         </Link>
       </p>
     </div>
+      <SponsorStrip />
+    </>
   );
 }

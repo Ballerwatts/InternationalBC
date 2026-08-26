@@ -1,5 +1,6 @@
 import { getAllSettings, query, getGymsWithTeams } from "@/lib/db";
 import GymCard from "@/components/GymCard";
+import SponsorStrip from "@/components/SponsorStrip";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "The Club — International Basketball Club Geneva (IBBC)" };
@@ -12,6 +13,7 @@ export default function ClubPage() {
   const unassigned = teams.filter((t) => !assignedTeamIds.has(t.id));
 
   return (
+    <>
     <div className="mx-auto max-w-3xl px-4 py-14">
       <h1 className="font-display text-4xl font-extrabold uppercase text-ibc-blue">The Club</h1>
       <p className="mt-4 whitespace-pre-line leading-relaxed text-ibc-ink/80">
@@ -70,6 +72,8 @@ export default function ClubPage() {
         </p>
       </div>
     </div>
+      <SponsorStrip />
+    </>
   );
 }
 

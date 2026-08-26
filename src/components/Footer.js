@@ -1,5 +1,6 @@
 import { getAllSettings } from "@/lib/db";
 import SocialLinks from "@/components/SocialLinks";
+import FooterSponsors from "@/components/FooterSponsors";
 
 export default function Footer() {
   const settings = getAllSettings();
@@ -29,6 +30,7 @@ export default function Footer() {
           </a>
         </div>
       </div>
+      <FooterSponsors />
       <div className="border-t border-white/10 py-3 text-center text-xs text-white/50">
         © {new Date().getFullYear()} International Basketball Club Geneva (IBBC)
       </div>

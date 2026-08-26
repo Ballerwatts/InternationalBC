@@ -3,6 +3,7 @@ import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import CalendarList from "@/components/CalendarList";
 import PracticeMap from "@/components/PracticeMap";
 import { todayISO } from "@/lib/dates";
+import SponsorStrip from "@/components/SponsorStrip";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendrier — International Basketball Club Geneva" };
@@ -75,6 +76,7 @@ export default function CalendarPage() {
   }).reverse();
 
   return (
+    <>
     <div className="mx-auto max-w-4xl px-4 py-14">
       <header className="mb-8 text-center">
         <h1 className="font-display text-4xl font-extrabold uppercase text-ibc-blue">Calendrier</h1>
@@ -113,5 +115,7 @@ export default function CalendarPage() {
         <PracticeMap address={settings.practice_location_address} />
       </div>
     </div>
+      <SponsorStrip />
+    </>
   );
 }
