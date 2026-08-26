@@ -8,6 +8,7 @@ import { statsForPlayer } from "@/lib/stats";
 import { query } from "@/lib/db";
 import { gameOutcome, outcomeClasses } from "@/lib/game-result";
 import { stripPrivatePlayerFields } from "@/lib/player-privacy";
+import { playerOfWeekFor } from "@/lib/player-of-week";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function MemberProfilePage({ params }) {
   // Season stats come from recorded box scores as soon as there are any;
   // otherwise the pre-existing hand-typed figures stand (see lib/stats.js).
   const stats = statsForPlayer(rawPlayer);
+  const potw = playerOfWeekFor(rawPlayer.id, rawPlayer.team_id);
   const recentGames = query(
     `SELECT p.id, p.practice_date, p.opponent, p.score_us, p.score_them,
             g.points, g.rebounds, g.assists, g.three_pointers, g.minutes
@@ -118,6 +120,29 @@ export default async function MemberProfilePage({ params }) {
             <p className="mt-2 text-sm text-ibc-ink/60">{player.team_category}</p>
           )}
 
+          {/* Player of the week — the club's weekly shout-out, so the photo
+              leads rather than sitting in the corner. Derived from this
+              week's official games, so it clears itself next Monday. */}
+          {potw && (
+            <aside className="mb-6 flex items-center gap-4 rounded-xl border-2 border-ibc-accent bg-ibc-accent/5 p-4 sm:float-right sm:ml-6 sm:mb-4 sm:w-64 sm:flex-col sm:text-center">
+              {rawPlayer.photo_data_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={rawPlayer.photo_data_url}
+                  alt={`${rawPlayer.first_name} ${rawPlayer.last_name}`}
+                  className="h-20 w-20 shrink-0 rounded-full object-cover sm:h-40 sm:w-40"
+                />
+              )}
+              <div>
+                <p className="font-display text-xs font-bold uppercase tracking-[0.15em] text-ibc-blue">
+                  Player of the week
+                </p>
+                <p className="mt-1 text-sm text-ibc-ink/70">
+                  {potw.points} points in {potw.games} game{potw.games > 1 ? "s" : ""}
+                </p>
+              </div>
+            </aside>
+          )}
           <div className={`mt-4 grid gap-3 ${attendedCount !== null ? "grid-cols-4" : "grid-cols-3"}`}>
             <Stat label="Games" value={stats.games} />
             <Stat label="Points" value={stats.points} />

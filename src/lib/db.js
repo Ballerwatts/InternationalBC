@@ -536,6 +536,15 @@ function migrate(db) {
   // comes down with it. Sent issues can only ever be archived, never
   // deleted — the record of what went to whom is not ours to destroy.
   addColumnIfMissing(db, "newsletters", "archived_at", "TEXT");
+
+  // The full newsletter content, copied onto the announcement when an issue
+  // is published to the site. Without it the post carried only a title and a
+  // comment, so everything the newsletter actually said — results, fixtures,
+  // player of the week, the practice focus — was lost on the way to the page.
+  addColumnIfMissing(db, "announcements", "blocks_json", "TEXT");
+  // Several photos per item, as a JSON array of data URLs. image_data_url
+  // stays as the lead image so nothing that reads it has to change.
+  addColumnIfMissing(db, "announcements", "images_json", "TEXT");
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");

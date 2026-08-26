@@ -18,12 +18,30 @@ export function siteUrl() {
 }
 
 export function parseBlocks(newsletter) {
+  let blocks;
   try {
-    const parsed = JSON.parse(newsletter?.blocks_json || "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    blocks = JSON.parse(newsletter?.blocks_json || "[]");
   } catch {
-    return [];
+    blocks = [];
   }
+  if (!Array.isArray(blocks)) blocks = [];
+
+  // Sponsors are part of the deal, not an editorial choice: once the club
+  // has sponsors they belong in every issue. If an issue was drafted before
+  // a sponsor existed, or the block was removed, it is put back at send time
+  // rather than quietly costing the club a placement it sold.
+  if (!blocks.some((b) => b?.type === "sponsors")) {
+    const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC").map((s) => ({
+      id: s.id,
+      name: s.name,
+      website_url: s.website_url,
+      // A data: URI cannot render in Gmail, so only real URLs travel.
+      logo_url: /^https?:\/\//i.test(String(s.logo_data_url || "")) ? s.logo_data_url : null,
+    }));
+    if (sponsors.length) blocks = [...blocks, { type: "sponsors", sponsors }];
+  }
+
+  return blocks;
 }
 
 /** club + team context every render needs, read once per send. */

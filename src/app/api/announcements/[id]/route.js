@@ -9,7 +9,8 @@ export async function PUT(request, { params }) {
   const unauthorized = await requireArea("marketing");
   if (unauthorized) return unauthorized;
 
-  const { title, body, published, in_newsletter, image_data_url, video_url } = await request.json();
+  const { title, body, published, in_newsletter, image_data_url, video_url, images } =
+    await request.json();
   if (!isSupportedVideoUrl(video_url)) {
     return NextResponse.json(
       { error: "Lien vidéo non reconnu — collez une URL YouTube ou Vimeo." },
@@ -19,8 +20,8 @@ export async function PUT(request, { params }) {
   // Editing a post that came from a newsletter hands ownership to this
   // screen: post_detached stops the next publish from reverting the change.
   run(
-    "UPDATE announcements SET title = ?, body = ?, published = ?, in_newsletter = ?, image_data_url = ?, video_url = ?, post_detached = CASE WHEN newsletter_id IS NULL THEN 0 ELSE 1 END, updated_at = datetime('now') WHERE id = ?",
-    [title, body, published ? 1 : 0, in_newsletter ? 1 : 0, image_data_url || null, (video_url || "").trim() || null, params.id]
+    "UPDATE announcements SET title = ?, body = ?, published = ?, in_newsletter = ?, image_data_url = ?, video_url = ?, images_json = ?, post_detached = CASE WHEN newsletter_id IS NULL THEN 0 ELSE 1 END, updated_at = datetime('now') WHERE id = ?",
+    [title, body, published ? 1 : 0, in_newsletter ? 1 : 0, image_data_url || null, (video_url || "").trim() || null, JSON.stringify(Array.isArray(images) ? images.filter(Boolean) : []), params.id]
   );
 
   return NextResponse.json({ ok: true });

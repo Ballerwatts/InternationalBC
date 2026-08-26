@@ -46,21 +46,26 @@ export function publishNewsletterPost(newsletterId) {
   const video = (n.post_video_url || "").trim();
   const safeVideo = video && isSupportedVideoUrl(video) ? video : null;
 
+  // Carry the whole issue across, not just its headline: results, fixtures,
+  // player of the week and the practice focus are what the newsletter
+  // actually said, and a post without them is a stub.
+  const blocksJson = n.blocks_json || "[]";
+
   if (existing) {
     run(
       `UPDATE announcements
        SET title = ?, body = ?, image_data_url = ?, video_url = ?, team_id = ?,
-           published = 1, updated_at = datetime('now')
+           blocks_json = ?, published = 1, updated_at = datetime('now')
        WHERE id = ?`,
-      [title, body, n.post_image_data_url || null, safeVideo, n.team_id ?? null, existing.id]
+      [title, body, n.post_image_data_url || null, safeVideo, n.team_id ?? null, blocksJson, existing.id]
     );
     return { posted: true, announcementId: existing.id };
   }
 
   const { lastInsertRowid } = run(
-    `INSERT INTO announcements (title, body, image_data_url, video_url, team_id, published, newsletter_id)
-     VALUES (?, ?, ?, ?, ?, 1, ?)`,
-    [title, body, n.post_image_data_url || null, safeVideo, n.team_id ?? null, newsletterId]
+    `INSERT INTO announcements (title, body, image_data_url, video_url, team_id, blocks_json, published, in_newsletter, newsletter_id)
+     VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?)`,
+    [title, body, n.post_image_data_url || null, safeVideo, n.team_id ?? null, blocksJson, newsletterId]
   );
   return { posted: true, announcementId: Number(lastInsertRowid) };
 }

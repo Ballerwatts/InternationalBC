@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import ImageDropzone from "@/components/ImageDropzone";
 
-const EMPTY = { title: "", body: "", published: 1, image_data_url: "", video_url: "" };
+const EMPTY = { title: "", body: "", published: 1, in_newsletter: 1, image_data_url: "", video_url: "", images: [] };
 
 export default function AnnouncementsAdminPage() {
   const [items, setItems] = useState([]);
@@ -94,14 +94,70 @@ export default function AnnouncementsAdminPage() {
             size={110}
           />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={!!form.published}
-            onChange={(e) => setForm({ ...form, published: e.target.checked ? 1 : 0 })}
-          />
-          Publiée sur le site
-        </label>
+        {/* Extra photos beyond the lead image — a match report usually has
+            more than one worth showing. */}
+        <div>
+          <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+            Photos supplémentaires
+          </label>
+          <div className="flex flex-wrap items-start gap-2">
+            {(form.images || []).map((src, i) => (
+              <ImageDropzone
+                key={i}
+                value={src}
+                onChange={(dataUrl) =>
+                  setForm((f) => {
+                    const next = [...(f.images || [])];
+                    if (dataUrl) next[i] = dataUrl;
+                    else next.splice(i, 1);
+                    return { ...f, images: next };
+                  })
+                }
+                maxWidth={1400}
+                size={92}
+              />
+            ))}
+            <ImageDropzone
+              value=""
+              onChange={(dataUrl) =>
+                dataUrl && setForm((f) => ({ ...f, images: [...(f.images || []), dataUrl] }))
+              }
+              maxWidth={1400}
+              size={92}
+              label="+ Ajouter"
+            />
+          </div>
+        </div>
+
+        {/* Two independent switches: write the news once, then choose where
+            it goes. A fixture change may belong only in the e-mail; a photo
+            gallery only on the site. */}
+        <div className="rounded-lg border border-black/10 bg-black/[0.02] p-3">
+          <p className="mb-2 text-xs font-bold uppercase text-ibc-blue/70">Où publier</p>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!form.published}
+              onChange={(e) => setForm({ ...form, published: e.target.checked ? 1 : 0 })}
+            />
+            Publiée sur le site
+            <span className="text-xs text-ibc-ink/45">— visible sur la page d&apos;accueil</span>
+          </label>
+          <label className="mt-1.5 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!form.in_newsletter}
+              onChange={(e) => setForm({ ...form, in_newsletter: e.target.checked ? 1 : 0 })}
+            />
+            Dans la newsletter
+            <span className="text-xs text-ibc-ink/45">— reprise dans l&apos;envoi du lundi</span>
+          </label>
+          {!form.published && !form.in_newsletter && (
+            <p className="mt-2 text-xs font-semibold text-amber-700">
+              Aucune des deux — cette actualité ne sera visible nulle part.
+            </p>
+          )}
+        </div>
         <div className="flex gap-2">
           <button className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110">
             {editingId ? "Mettre à jour" : "Publier"}
@@ -137,11 +193,15 @@ export default function AnnouncementsAdminPage() {
                 <div>
                   <p className="font-display text-lg font-bold text-ibc-ink">
                     {a.title}{" "}
-                    {!a.published && (
-                      <span className="ml-1 rounded bg-black/10 px-2 py-0.5 text-xs font-semibold text-ibc-ink/60">
-                        brouillon
-                      </span>
-                    )}
+                    <span className="ml-1 rounded bg-black/[0.06] px-2 py-0.5 text-xs font-semibold text-ibc-ink/60">
+                      {a.published && a.in_newsletter
+                        ? "site + newsletter"
+                        : a.published
+                        ? "site"
+                        : a.in_newsletter
+                        ? "newsletter"
+                        : "nulle part"}
+                    </span>
                     {/* Where it came from, and who owns it now. Once edited
                         here, a re-send of the newsletter leaves it alone. */}
                     {a.newsletter_id && (

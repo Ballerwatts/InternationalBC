@@ -21,6 +21,22 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
 }
 
+
+/**
+ * A card shows the opening line in bold and the next two sentences, then
+ * links through. Printing a whole newsletter into a card made the home page
+ * unreadable and gave nobody a reason to open anything.
+ */
+function newsTeaser(body) {
+  const text = String(body || "").trim();
+  if (!text) return { lead: "", rest: "" };
+  const [first, ...others] = text.split(/\r?\n/).filter((l) => l.trim());
+  const remainder = others.join(" ").trim();
+  // Split on sentence ends, keeping the punctuation.
+  const sentences = remainder.match(/[^.!?]+[.!?]*/g) || [];
+  return { lead: first.trim(), rest: sentences.slice(0, 2).join(" ").trim() };
+}
+
 export default function HomePage() {
   const settings = getAllSettings();
   const homeGym = getHomeGym();
@@ -81,7 +97,27 @@ export default function HomePage() {
                     {new Date(a.created_at).toLocaleDateString("en-GB")}
                   </p>
                   <h3 className="mt-1 font-display text-xl font-bold text-ibc-ink">{a.title}</h3>
-                  <p className="mt-2 whitespace-pre-line text-sm text-ibc-ink/75">{a.body}</p>
+                  {/* A card is a teaser: the opening line in bold, then two
+                      sentences. The whole item lives on its own page. */}
+                  {(() => {
+                    const teaser = newsTeaser(a.body);
+                    return (
+                      <>
+                        {teaser.lead && (
+                          <p className="mt-2 text-sm font-semibold text-ibc-ink">{teaser.lead}</p>
+                        )}
+                        {teaser.rest && (
+                          <p className="mt-1 text-sm text-ibc-ink/70">{teaser.rest}</p>
+                        )}
+                      </>
+                    );
+                  })()}
+                  <Link
+                    href={`/actualites/${a.id}`}
+                    className="mt-3 inline-block text-xs font-bold uppercase tracking-wide text-ibc-blue hover:underline"
+                  >
+                    Lire la suite →
+                  </Link>
                 </div>
               </article>
             ))}
