@@ -15,6 +15,22 @@ const nextConfig = {
       { source: `${from}/`, destination: to, permanent: true },
     ];
     return [
+      // The bare domain goes to www, as WordPress already did — otherwise
+      // once DNS moves, intbbc.org and www.intbbc.org would be two copies of
+      // every page. Inert until the domain actually points here.
+      {
+        // Slashed paths first, so /teams/ibbc-men/ keeps its trailing slash.
+        source: "/:path+/",
+        has: [{ type: "host", value: "intbbc.org" }],
+        destination: "https://www.intbbc.org/:path+/",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "intbbc.org" }],
+        destination: "https://www.intbbc.org/:path*",
+        permanent: true,
+      },
       // The previous version of this app used French paths.
       ...moved("/club", "/theclub/"),
       ...moved("/equipe", "/teams/"),
