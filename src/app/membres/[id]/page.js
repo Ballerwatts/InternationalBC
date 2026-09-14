@@ -9,14 +9,31 @@ import { query } from "@/lib/db";
 import { gameOutcome, outcomeClasses } from "@/lib/game-result";
 import { stripPrivatePlayerFields } from "@/lib/player-privacy";
 import { playerOfWeekFor } from "@/lib/player-of-week";
+import { playerPhotoUrl } from "@/lib/media";
+import { pageMetadata, snippet } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 const ROLE_LABELS = { admin: "Super-admin", coach: "Coach", player: "Player" };
 
 export async function generateMetadata({ params }) {
-  const p = get("SELECT first_name, last_name FROM players WHERE id = ?", [params.id]);
-  return { title: p ? `${p.first_name} ${p.last_name} — IBBC` : "Member — IBBC" };
+  const p = get(
+    `SELECT players.*, teams.name AS team_name FROM players
+     LEFT JOIN teams ON teams.id = players.team_id WHERE players.id = ? AND players.active = 1`,
+    [params.id]
+  );
+  if (!p) return { robots: { index: false } };
+  const name = `${p.first_name} ${p.last_name}`.trim();
+  return pageMetadata({
+    title: name,
+    description: snippet(
+      p.bio ||
+        `${name}${p.position ? `, ${p.position},` : ""} plays for ${p.team_name || "International Geneva Basketball Club"} (IBBC) in Geneva. Player profile and season statistics.`
+    ),
+    path: `/membres/${p.id}/`,
+    image: playerPhotoUrl(p) || undefined,
+    type: "profile",
+  });
 }
 
 export default async function MemberProfilePage({ params }) {
@@ -68,10 +85,10 @@ export default async function MemberProfilePage({ params }) {
 
       <div className="mt-4 flex flex-col gap-6 sm:flex-row sm:items-start">
         <div className="relative aspect-square w-40 shrink-0 overflow-hidden rounded-xl bg-ibc-blue shadow-sm">
-          {player.photo_data_url ? (
+          {rawPlayer.photo_data_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={player.photo_data_url}
+              src={playerPhotoUrl(rawPlayer)}
               alt={`${player.first_name} ${player.last_name}`}
               className="h-full w-full object-cover"
             />
@@ -93,7 +110,7 @@ export default async function MemberProfilePage({ params }) {
           <div className="mt-2 flex flex-wrap gap-2">
             {player.team_name && (
               <Link
-                href="/equipe"
+                href="/teams/"
                 className="rounded-full bg-ibc-blue px-3 py-1 text-xs font-bold uppercase text-white hover:brightness-110"
               >
                 {player.team_name}
@@ -128,7 +145,7 @@ export default async function MemberProfilePage({ params }) {
               {rawPlayer.photo_data_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={rawPlayer.photo_data_url}
+                  src={playerPhotoUrl(rawPlayer)}
                   alt={`${rawPlayer.first_name} ${rawPlayer.last_name}`}
                   className="h-20 w-20 shrink-0 rounded-full object-cover sm:h-40 sm:w-40"
                 />

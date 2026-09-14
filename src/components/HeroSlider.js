@@ -75,7 +75,7 @@ function HeroSlide({ settings }) {
             View calendar
           </Link>
           <Link
-            href="/equipe"
+            href="/teams/"
             className="rounded-full border-2 border-white/70 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-white hover:text-ibc-blue"
           >
             Meet the teams
@@ -136,10 +136,10 @@ function SponsorsSlide({ sponsors }) {
           const isMain = s.tier === "main";
           return (
             <div key={s.id} className="flex flex-col items-center gap-2">
-              {s.logo_data_url ? (
+              {s.logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={s.logo_data_url}
+                  src={s.logo_url}
                   alt={s.name}
                   className={
                     isMain

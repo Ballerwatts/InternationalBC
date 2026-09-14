@@ -1,16 +1,23 @@
 import { query } from "@/lib/db";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizePlayers } from "@/lib/player-privacy";
+import { withPhotoUrls } from "@/lib/media";
 import MembersSearch from "@/components/MembersSearch";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Members — International Basketball Club Geneva" };
+export const metadata = pageMetadata({
+  title: "Players & Members",
+  description:
+    "Meet the players of International Geneva Basketball Club (IBBC) across our men's, women's and youth teams — profiles, positions and season statistics.",
+  path: "/membres/",
+});
 
 export default async function MembersPage() {
   // These rows are handed to a client component, so every column ends up
   // in the page payload — strip contact details for logged-out visitors.
   const canSeeContact = await isAuthenticated();
-  const players = sanitizePlayers(
+  const players = withPhotoUrls(sanitizePlayers(
     query(
       `SELECT players.*, teams.name as team_name, teams.category as team_category
        FROM players LEFT JOIN teams ON teams.id = players.team_id
@@ -18,7 +25,7 @@ export default async function MembersPage() {
        ORDER BY players.last_name ASC, players.first_name ASC`
     ),
     canSeeContact
-  );
+  ));
   const teams = query("SELECT * FROM teams ORDER BY sort_order ASC, name ASC");
 
   return (

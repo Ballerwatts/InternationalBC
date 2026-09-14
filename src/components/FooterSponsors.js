@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import { sponsorLogoUrl } from "@/lib/media";
 
 /**
  * Sponsor logos in the footer, centred and deliberately larger than the
@@ -16,12 +17,12 @@ export default function FooterSponsors() {
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-8">
         {sponsors.map((s) => {
-          const logo = s.logo_data_url ? (
+          const logo = sponsorLogoUrl(s) ? (
             // A logo made for print is usually dark; the footer is dark too,
             // so a white plate keeps it legible instead of invisible.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={s.logo_data_url}
+              src={sponsorLogoUrl(s)}
               alt={s.name}
               className="h-14 w-auto rounded bg-white/95 object-contain p-1.5"
             />

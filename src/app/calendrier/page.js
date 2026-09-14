@@ -4,9 +4,15 @@ import CalendarList from "@/components/CalendarList";
 import PracticeMap from "@/components/PracticeMap";
 import { todayISO } from "@/lib/dates";
 import SponsorStrip from "@/components/SponsorStrip";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Calendrier — International Basketball Club Geneva" };
+export const metadata = pageMetadata({
+  title: "Calendar — Games, Practices and Events",
+  description:
+    "IBBC Geneva's full calendar: upcoming games, practices, tournaments and club events for every team, with results from the season so far.",
+  path: "/calendrier/",
+});
 
 // Builds the merged, date-ordered timeline (holiday bands + events) and
 // hands it to a client component that owns the filters. All the date maths

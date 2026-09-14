@@ -10,6 +10,8 @@ import { query, get, getAllSettings } from "@/lib/db";
 import { mondayOfISO, addDays as addDaysISO } from "@/lib/dates";
 import { SCORED_KINDS } from "@/lib/event-kinds";
 import { todayISO } from "@/lib/dates";
+import { playerPhotoUrl } from "@/lib/media";
+import { sponsorLogoUrl } from "@/lib/media";
 
 export function mondayOf(date = new Date()) {
   return mondayOfISO(date);
@@ -187,7 +189,7 @@ export function buildBlocks({ teamId = null, weekStart = mondayOf(), siteUrl = "
     // A logo stored as a data: URI cannot render in Gmail. Rather than ship
     // a broken image we drop the sponsor from the email; email-template.js
     // filters these out again as a belt-and-braces check.
-    logo_url: /^https?:\/\//i.test(String(s.logo_data_url || "")) ? s.logo_data_url : null,
+    logo_url: sponsorLogoUrl(s) ? new URL(sponsorLogoUrl(s), site).href : null,
     website_url: s.website_url,
   }));
 
@@ -204,7 +206,7 @@ export function buildBlocks({ teamId = null, weekStart = mondayOf(), siteUrl = "
             name: `${scorer.first_name} ${scorer.last_name}`.trim(),
             jersey: scorer.jersey_number || "",
             stat_line: `${scorer.pts} points in ${scorer.games} game${scorer.games > 1 ? "s" : ""}`,
-            photo_url: /^https?:\/\//i.test(String(scorer.photo_data_url || "")) ? scorer.photo_data_url : null,
+            photo_url: playerPhotoUrl(scorer) ? new URL(playerPhotoUrl(scorer), site).href : null,
             note: "",
           }
         : null,

@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { SEED_HOLIDAYS } from "@/lib/holidays";
 import { toISODate } from "@/lib/dates";
+import { WORDPRESS_PAGES } from "@/lib/wordpress-content";
 
 const DB_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "ibc.db");
 
@@ -32,6 +33,8 @@ function getDb() {
   // After seed() so a brand-new database already has its teams and club
   // settings to promote into real gym rows.
   migrateGyms(_db);
+  // Last: needs the seeded teams and promoted gyms to already exist.
+  seedFromWordPress(_db);
   return _db;
 }
 
@@ -545,6 +548,26 @@ function migrate(db) {
   // Several photos per item, as a JSON array of data URLs. image_data_url
   // stays as the lead image so nothing that reads it has to change.
   addColumnIfMissing(db, "announcements", "images_json", "TEXT");
+
+  // Each team gets its own page at /teams/<slug>/, at the address WordPress
+  // already had indexed, plus a written introduction for that page.
+  addColumnIfMissing(db, "teams", "slug", "TEXT");
+  addColumnIfMissing(db, "teams", "description", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS teams_slug_unique ON teams(slug) WHERE slug IS NOT NULL");
+
+  // Editable content pages carried over from WordPress (club history, rules
+  // and fees, committee, gymnasium...). Keyed by their public path so the
+  // URL Google indexed is the key the page is stored under.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS site_pages (
+      path TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      body TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
   // Two photos per hall — the way in, and the court itself. A visiting team
   // that has never been to Sismondi needs to recognise the door.
   addColumnIfMissing(db, "gyms", "photo_interior_data_url", "TEXT");
@@ -1088,6 +1111,80 @@ export function replaceSlotsForTeam(teamId, slots) {
       [teamId, weekday, s.start_time, s.end_time, s.gym_id ? Number(s.gym_id) : null, i]
     );
   });
+}
+
+
+// ---------------------------------------------------------------------------
+// Carrying WordPress across
+// ---------------------------------------------------------------------------
+
+/** "IBBC Men (2LCM)" -> "ibbc-men-2lcm". */
+export function slugify(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Squads matched to the address WordPress already had indexed for them, so
+// /teams/<slug>/ is the URL Google knows. Anything else gets a slug from its
+// name.
+const WP_TEAM_SLUGS = [
+  { match: /women|femmes|nl1/i, slug: "ibbc-femmes" },
+  { match: /3lcm/i, slug: "ibbc-men" },
+  { match: /u18/i, slug: "ibbc-u18-youth-mens-team" },
+  { match: /u8|mini.?basket/i, slug: "ibbc-u8-minibasket-team" },
+];
+
+function seedFromWordPress(db) {
+  // Content pages — inserted once; an admin's later edits are never touched.
+  const insertPage = db.prepare(
+    "INSERT OR IGNORE INTO site_pages (path, title, description, body) VALUES (?, ?, ?, ?)"
+  );
+  for (const path of ["/", "/theclub/", "/theclub/clubhistory/", "/theclub/rulesfees/", "/committee/", "/gymnasium/", "/teams/"]) {
+    const p = WORDPRESS_PAGES[path];
+    if (p) insertPage.run(path, p.title, p.description || null, p.body || "");
+  }
+
+  // The U8 mini-basket team exists on WordPress (added September 2026) but
+  // not here. Create it — with its hall and its Wednesday slot — only if no
+  // U8 team exists yet, so this never duplicates what an admin set up.
+  const hasU8 = db.prepare("SELECT id FROM teams WHERE name LIKE '%U8%' OR slug = 'ibbc-u8-minibasket-team'").get();
+  if (!hasU8) {
+    const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), -1) AS m FROM teams").get().m;
+    const teamId = Number(
+      db.prepare("INSERT INTO teams (name, category, sort_order, slug) VALUES (?, ?, ?, ?)").run(
+        "IBBC Mini-Basket (U8 mixed)", "U8 — Mini-basket, 7–8 years, mixed", maxOrder + 1, "ibbc-u8-minibasket-team"
+      ).lastInsertRowid
+    );
+    let gym = db.prepare("SELECT id FROM gyms WHERE name LIKE '%Rousseau%'").get();
+    if (!gym) {
+      gym = { id: Number(db.prepare("INSERT INTO gyms (name, address, sort_order) VALUES (?, ?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM gyms))").run(
+        "Collège Rousseau (Gym 2)", "Av. du Bouchet 16A, 1209 Genève"
+      ).lastInsertRowid) };
+    }
+    db.prepare("INSERT OR IGNORE INTO team_gyms (team_id, gym_id, usage, sort_order) VALUES (?, ?, 'practice', 0)").run(teamId, gym.id);
+    db.prepare("INSERT OR IGNORE INTO team_practice_slots (team_id, weekday, start_time, end_time, gym_id) VALUES (?, 3, '14:00', '16:00', ?)").run(teamId, gym.id);
+  }
+
+  // Slugs for every squad that does not have one yet.
+  const taken = new Set(db.prepare("SELECT slug FROM teams WHERE slug IS NOT NULL").all().map((r) => r.slug));
+  for (const t of db.prepare("SELECT id, name FROM teams WHERE slug IS NULL ORDER BY sort_order").all()) {
+    const wp = WP_TEAM_SLUGS.find((m) => m.match.test(t.name));
+    let slug = wp && !taken.has(wp.slug) ? wp.slug : slugify(t.name) || `team-${t.id}`;
+    for (let n = 2; taken.has(slug); n++) slug = `${slugify(t.name)}-${n}`;
+    db.prepare("UPDATE teams SET slug = ? WHERE id = ?").run(slug, t.id);
+    taken.add(slug);
+  }
+
+  // A team page starts with the introduction WordPress had for it.
+  for (const t of db.prepare("SELECT id, slug FROM teams WHERE description IS NULL").all()) {
+    const p = WORDPRESS_PAGES[`/teams/${t.slug}/`];
+    if (p?.body) db.prepare("UPDATE teams SET description = ? WHERE id = ?").run(p.body, t.id);
+  }
 }
 
 export default getDb;

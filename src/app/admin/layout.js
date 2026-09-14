@@ -3,6 +3,9 @@ import { getAccount } from "@/lib/access";
 import { accountHasAnyArea } from "@/lib/admin-areas";
 import AdminNav from "@/components/AdminNav";
 
+// Staff and team areas are for members, not search results.
+export const metadata = { robots: { index: false, follow: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }) {

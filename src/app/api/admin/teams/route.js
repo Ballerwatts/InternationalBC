@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, run } from "@/lib/db";
+import { get, query, run, slugify } from "@/lib/db";
 import { requireArea } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +26,11 @@ export async function POST(request) {
     "INSERT INTO teams (name, category, sort_order, practice_location_name, practice_location_address) VALUES (?, ?, ?, ?, ?)",
     [cleanName, category || null, maxOrder + 1, practice_location_name || null, practice_location_address || null]
   );
+
+  // Every team gets its own page address straight away, unique by suffix.
+  let slug = slugify(cleanName) || `team-${lastInsertRowid}`;
+  for (let n = 2; get("SELECT id FROM teams WHERE slug = ?", [slug]); n++) slug = `${slugify(cleanName)}-${n}`;
+  run("UPDATE teams SET slug = ? WHERE id = ?", [slug, lastInsertRowid]);
 
   return NextResponse.json({ ok: true, id: lastInsertRowid });
 }

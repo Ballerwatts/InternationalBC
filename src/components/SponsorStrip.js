@@ -1,4 +1,5 @@
 import { query } from "@/lib/db";
+import { sponsorLogoUrl } from "@/lib/media";
 
 /**
  * The club's sponsors, on every public page rather than only the home page —
@@ -22,11 +23,12 @@ export default function SponsorStrip({ title = "Our Sponsors", className = "" })
           {sponsors.map((s) => {
             // A main sponsor bought a bigger slot; the tier is the deal.
             const isMain = s.tier === "main";
-            const logo = s.logo_data_url ? (
+            const logo = sponsorLogoUrl(s) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={s.logo_data_url}
-                alt={s.name}
+                src={sponsorLogoUrl(s)}
+                alt={`${s.name} — sponsor of International Geneva Basketball Club`}
+                loading="lazy"
                 className={`w-auto object-contain ${isMain ? "max-h-20" : "max-h-12"}`}
               />
             ) : (

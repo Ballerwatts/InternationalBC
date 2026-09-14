@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { getAllSettings, query, getHomeGym } from "@/lib/db";
+import { getAllSettings, query, getHomeGym, getGymsWithTeams } from "@/lib/db";
 import PracticeMap from "@/components/PracticeMap";
 import HeroSlider from "@/components/HeroSlider";
 import InstagramGallery from "@/components/InstagramGallery";
 import VideoEmbed from "@/components/VideoEmbed";
 import { todayISO } from "@/lib/dates";
+import RichText from "@/components/RichText";
+import { getSitePage } from "@/lib/site-pages";
+import { pageMetadata, jsonLd, clubJsonLd } from "@/lib/seo";
+import { sponsorLogoUrl } from "@/lib/media";
 
 export const dynamic = "force-dynamic";
 
@@ -37,14 +41,24 @@ function newsTeaser(body) {
   return { lead: first.trim(), rest: sentences.slice(0, 2).join(" ").trim() };
 }
 
+export function generateMetadata() {
+  const home = getSitePage("/");
+  return pageMetadata({ path: "/", description: home?.description || undefined });
+}
+
 export default function HomePage() {
+  const homePage = getSitePage("/");
   const settings = getAllSettings();
   const homeGym = getHomeGym();
   const announcements = query(
     "SELECT * FROM announcements WHERE published = 1 ORDER BY created_at DESC LIMIT 3"
   );
   const upcoming = nextPractices(4);
-  const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC");
+  // Logos go to the page as URLs, never as the encoded image: the hero slider
+  // is a client component, so an inline logo was serialised twice.
+  const sponsors = query("SELECT * FROM sponsors ORDER BY sort_order ASC, id ASC").map(
+    ({ logo_data_url, ...s }) => ({ ...s, logo_url: sponsorLogoUrl({ ...s, logo_data_url }) })
+  );
   const heroPhotos = query("SELECT * FROM hero_photos ORDER BY sort_order ASC, id ASC");
   const instagramPosts =
     settings.instagram_gallery_enabled === "0"
@@ -56,6 +70,7 @@ export default function HomePage() {
   return (
     <div>
       {/* HERO SLIDER — club headline, latest announcement, sponsors, + up to 3 extra photos */}
+      <script {...jsonLd(clubJsonLd({ gyms: getGymsWithTeams() }))} />
       <HeroSlider
         settings={settings}
         announcement={latestAnnouncement}
@@ -205,7 +220,14 @@ export default function HomePage() {
         <div className="grid gap-10 md:grid-cols-2 md:items-center">
           <div>
             <h2 className="font-display text-3xl font-bold uppercase text-ibc-blue">The Club</h2>
-            <p className="mt-4 whitespace-pre-line text-ibc-ink/75">{settings.club_about}</p>
+            {/* The welcome text carried over from WordPress (editable in
+                Admin → Pages), which is what the old home page ranked on.
+                The shorter club blurb remains the fallback. */}
+            {homePage?.body ? (
+              <RichText text={homePage.body} className="mt-4 text-ibc-ink/75" />
+            ) : (
+              <p className="mt-4 whitespace-pre-line text-ibc-ink/75">{settings.club_about}</p>
+            )}
           </div>
           {settings.highlight_body && (
             <div>
@@ -221,7 +243,7 @@ export default function HomePage() {
                 </p>
               </div>
               <Link
-                href="/equipe"
+                href="/teams/"
                 className="mt-4 inline-block text-sm font-bold uppercase text-ibc-blue hover:underline"
               >
                 See all teams →
@@ -250,10 +272,10 @@ export default function HomePage() {
                     className="flex flex-col items-center gap-2 text-center"
                     title={s.description || s.name}
                   >
-                    {s.logo_data_url ? (
+                    {s.logo_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={s.logo_data_url}
+                        src={s.logo_url}
                         alt={s.name}
                         className={isMain ? "h-28 w-auto object-contain" : "h-9 w-auto object-contain"}
                       />

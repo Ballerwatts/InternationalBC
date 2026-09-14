@@ -4,6 +4,7 @@ import { get } from "@/lib/db";
 import NewsBlocks from "@/components/NewsBlocks";
 import VideoEmbed from "@/components/VideoEmbed";
 import PhotoZoom from "@/components/PhotoZoom";
+import { pageMetadata, snippet } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,14 @@ function load(id) {
 
 export async function generateMetadata({ params }) {
   const item = load(params.id);
-  if (!item) return { title: "News — International Basketball Club Geneva" };
-  return {
-    title: `${item.title} — International Basketball Club Geneva`,
-    description: String(item.body || "").slice(0, 160),
-  };
+  if (!item) return { robots: { index: false } };
+  return pageMetadata({
+    title: item.title,
+    description: snippet(item.body) || undefined,
+    path: `/actualites/${item.id}/`,
+    image: /^\//.test(item.image_data_url || "") ? item.image_data_url : undefined,
+    type: "article",
+  });
 }
 
 export default function NewsItemPage({ params }) {

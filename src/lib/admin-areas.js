@@ -18,6 +18,7 @@ export const ADMIN_GROUPS = [
     hint: "Public-facing content: what a visitor sees on the website.",
     items: [
       { href: "/admin/hero", label: "Hero" },
+      { href: "/admin/pages", label: "Pages" },
       { href: "/admin/announcements", label: "Announcements" },
       { href: "/admin/newsletter", label: "Newsletter" },
       { href: "/admin/sponsors", label: "Sponsors" },

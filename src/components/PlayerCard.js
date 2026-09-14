@@ -8,11 +8,13 @@ export default function PlayerCard({ p }) {
       className="group overflow-hidden rounded-xl border border-black/5 bg-white shadow-sm ring-1 ring-black/5 transition hover:-translate-y-1 hover:shadow-lg"
     >
       <div className="relative aspect-square bg-ibc-blue">
-        {p.photo_data_url ? (
+        {p.photo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={p.photo_data_url}
-            alt={`${p.first_name} ${p.last_name}`}
+            src={p.photo_url}
+            alt={`${p.first_name} ${p.last_name} — ${p.team_name || "International Geneva Basketball Club"}`}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (

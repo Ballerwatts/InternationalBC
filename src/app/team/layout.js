@@ -2,6 +2,9 @@ import { redirect } from "next/navigation";
 import { isAuthenticated, getSession } from "@/lib/auth";
 import TeamNav from "@/components/TeamNav";
 
+// Staff and team areas are for members, not search results.
+export const metadata = { robots: { index: false, follow: false } };
+
 export const dynamic = "force-dynamic";
 
 export default async function TeamLayout({ children }) {

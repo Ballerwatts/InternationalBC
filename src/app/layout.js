@@ -4,6 +4,8 @@ import Footer from "@/components/Footer";
 import { LanguageProvider } from "@/components/LanguageProvider";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import InstallAppPrompt from "@/components/InstallAppPrompt";
+import { headers } from "next/headers";
+import { SITE_URL, BRAND, DEFAULT_DESCRIPTION, OG_IMAGE } from "@/lib/seo";
 
 // Note: intentionally using system font stacks (defined in globals.css)
 // instead of next/font/google — this keeps the production build fully
@@ -16,10 +18,24 @@ import InstallAppPrompt from "@/components/InstallAppPrompt";
 // pasted in the admin would only appear after the next deploy.
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "International Basketball Club Geneva (IBBC)",
-  description:
-    "Official site of International Basketball Club Geneva (IBBC) — four squads competing across the Geneva basketball leagues (A.C.G.B.A.). Teams, calendar, tactics, and club life.",
+export async function generateMetadata() {
+  // The site answers on internationalbc.fly.dev as well as www.intbbc.org.
+  // Only the real domain may be indexed — two copies of every page would
+  // split the rankings the migration exists to keep.
+  const host = headers().get("host") || "";
+  const isCanonicalHost = !/\.fly\.dev$|^localhost|^127\./.test(host);
+  return {
+    ...baseMetadata,
+    ...(isCanonicalHost ? {} : { robots: { index: false, follow: false } }),
+  };
+}
+
+const baseMetadata = {
+  metadataBase: new URL(SITE_URL),
+  title: { default: BRAND, template: `%s | ${BRAND}` },
+  description: DEFAULT_DESCRIPTION,
+  openGraph: { siteName: BRAND, locale: "en_GB", type: "website", images: [OG_IMAGE] },
+  twitter: { card: "summary" },
   icons: {
     icon: "/favicon.ico",
     apple: "/icons/apple-touch-icon.png",

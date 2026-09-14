@@ -41,11 +41,13 @@ export default function TeamsAdminPage() {
   }
 
   async function update(id, patch) {
-    await fetch(`/api/admin/teams/${id}`, {
+    setError("");
+    const res = await fetch(`/api/admin/teams/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
+    if (!res.ok) setError((await res.json().catch(() => ({}))).error || "Échec de l'enregistrement.");
     refresh();
   }
 
@@ -201,6 +203,44 @@ function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove,
             onChange={(e) => setForm({ ...form, category: e.target.value })}
             className="input"
           />
+          {/* The team's own public page. The address is what search engines
+              index, so changing it later breaks every existing link. */}
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Adresse de la page d&apos;équipe
+            </label>
+            <div className="flex items-center gap-1 text-sm">
+              <span className="font-mono text-ibc-ink/45">/teams/</span>
+              <input
+                value={form.slug || ""}
+                onChange={(e) => setForm({ ...form, slug: e.target.value })}
+                className="input flex-1 font-mono"
+              />
+              <span className="font-mono text-ibc-ink/45">/</span>
+              {team.slug && (
+                <a href={`/teams/${team.slug}/`} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs font-bold uppercase text-ibc-blue hover:underline">
+                  Voir →
+                </a>
+              )}
+            </div>
+            {team.slug && form.slug && form.slug !== team.slug && (
+              <p className="mt-1 text-xs font-semibold text-amber-700">
+                Changer l&apos;adresse casse les liens existants vers /teams/{team.slug}/ et fait perdre son
+                référencement Google.
+              </p>
+            )}
+          </div>
+          <div className="col-span-2">
+            <label className="mb-1 block text-xs font-bold uppercase text-ibc-blue/70">
+              Présentation (page d&apos;équipe) — « ## » titre, « - » liste
+            </label>
+            <textarea
+              rows={6}
+              value={form.description || ""}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="input w-full"
+            />
+          </div>
           {/* These used to be free-text "Practice location" boxes. Anything
               typed there was silently overwritten the next time a gym was
               saved, because the gyms table owns venues. So they are gone:
@@ -241,9 +281,10 @@ function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove,
             <button
               onClick={() =>
                 onSave({
-                  ...form,
-                  practice_location_name: team.practice_location_name,
-                  practice_location_address: team.practice_location_address,
+                  name: form.name,
+                  category: form.category,
+                  slug: form.slug,
+                  description: form.description,
                 })
               }
               className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110"

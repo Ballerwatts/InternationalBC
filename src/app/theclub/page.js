@@ -1,9 +1,12 @@
 import { getAllSettings, query, getGymsWithTeams } from "@/lib/db";
 import GymCard from "@/components/GymCard";
 import SponsorStrip from "@/components/SponsorStrip";
+import { sitePageMetadata } from "@/lib/site-pages";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "The Club — International Basketball Club Geneva (IBBC)" };
+export function generateMetadata() {
+  return sitePageMetadata("/theclub/");
+}
 
 export default function ClubPage() {
   const settings = getAllSettings();
