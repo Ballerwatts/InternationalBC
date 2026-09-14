@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query, run, getSlotsForTeam, toTeamId } from "@/lib/db";
+import { query, run, getSlotsForTeam, getTeamPracticeGym, toTeamId } from "@/lib/db";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
 import { applyAbsencesToPractice } from "@/lib/absences";
@@ -68,6 +68,10 @@ export async function POST(request) {
     return NextResponse.json({ error: "date, heure de début et de fin requises" }, { status: 400 });
   }
 
+  // A practice for a squad with no venue typed in takes the squad's own
+  // hall — the gym linked to the team is the answer to "where is it?".
+  const teamGym = kind === "practice" || !kind ? getTeamPracticeGym(teamId) : null;
+
   const { lastInsertRowid } = run(
     `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, opponent, notes, video_url, team_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -77,8 +81,8 @@ export async function POST(request) {
       practice_date,
       start_time,
       end_time,
-      location_name || null,
-      location_address || null,
+      location_name || teamGym?.name || null,
+      location_address || (location_name ? null : teamGym?.address) || null,
       opponent || null,
       notes || null,
       (video_url || "").trim() || null,
@@ -99,6 +103,8 @@ function generateWeeks({ weeks = 12, teamId }) {
   // squad has no pattern saved yet, so existing behaviour is unchanged until
   // someone sets one from /admin/schedule.
   const slots = getSlotsForTeam(teamId);
+  // A slot with no hall chosen falls back to the squad's linked practice gym.
+  const teamGym = getTeamPracticeGym(teamId);
   const pattern = slots.length
     ? slots
     : [
@@ -157,8 +163,8 @@ function generateWeeks({ weeks = 12, teamId }) {
         iso,
         slot.start_time,
         slot.end_time,
-        slot.gym_name || null,
-        slot.gym_address || null,
+        slot.gym_name || teamGym?.name || null,
+        slot.gym_address || (slot.gym_name ? null : teamGym?.address) || null,
         teamId,
       ]);
       applyAbsencesToPractice(lastInsertRowid);

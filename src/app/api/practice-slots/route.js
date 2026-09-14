@@ -6,8 +6,8 @@ import { getSession } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 // A squad's weekly training pattern — which days, what times, which hall.
-// Read is open to any logged-in area holder; writes are organisation, the
-// same area that owns the calendar.
+// Editable from the Calendar (organisation) and from a team's own page in
+// Teams (marketing) — it is the same schedule either way.
 
 function teamIdFrom(request, session) {
   // A coach only ever edits their own squad, whatever they send.
@@ -16,14 +16,14 @@ function teamIdFrom(request, session) {
 }
 
 export async function GET(request) {
-  const denied = await requireArea("organisation");
+  const denied = await requireArea("organisation", "marketing");
   if (denied) return denied;
   const session = await getSession();
   return NextResponse.json(getSlotsForTeam(teamIdFrom(request, session)));
 }
 
 export async function PUT(request) {
-  const denied = await requireArea("organisation");
+  const denied = await requireArea("organisation", "marketing");
   if (denied) return denied;
   const session = await getSession();
   const teamId = teamIdFrom(request, session);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { query } from "@/lib/db";
+import { query, getGymsByTeamId, getSlotsByTeamId } from "@/lib/db";
 import { isAuthenticated } from "@/lib/auth";
 import { sanitizePlayers } from "@/lib/player-privacy";
 import TeamAccordion from "@/components/TeamAccordion";
@@ -18,6 +18,10 @@ export default async function TeamPage() {
     canSeeContact
   );
   const unassigned = players.filter((p) => !p.team_id);
+  // Each squad's halls and weekly rhythm, both edited from the team itself in
+  // the admin, so what a visitor reads here is what the club actually set.
+  const gymsByTeam = getGymsByTeamId();
+  const scheduleByTeam = getSlotsByTeamId();
 
   return (
     <>
@@ -34,7 +38,13 @@ export default async function TeamPage() {
         </p>
       </header>
 
-      <TeamAccordion teams={teams} players={players} unassigned={unassigned} />
+      <TeamAccordion
+        teams={teams}
+        players={players}
+        unassigned={unassigned}
+        gymsByTeam={gymsByTeam}
+        scheduleByTeam={scheduleByTeam}
+      />
 
       {players.length === 0 && (
         <p className="mt-10 text-center text-ibc-ink/60">No players yet.</p>

@@ -1031,6 +1031,34 @@ export function toTeamId(value) {
   return Number.isInteger(n) ? n : null;
 }
 
+/**
+ * The hall a squad trains in: its first gym linked for practice (or both).
+ * The fallback venue for that squad's sessions, so a practice created without
+ * a location still says where it is instead of showing a blank.
+ */
+export function getTeamPracticeGym(teamId) {
+  if (teamId == null) return null;
+  return get(
+    `SELECT g.* FROM team_gyms tg JOIN gyms g ON g.id = tg.gym_id
+     WHERE tg.team_id = ? AND tg.usage IN ('practice', 'both')
+     ORDER BY tg.sort_order ASC, g.name ASC LIMIT 1`,
+    [teamId]
+  ) ?? null;
+}
+
+/** Every squad's weekly slots, keyed by team id, with the gym resolved. */
+export function getSlotsByTeamId() {
+  const rows = query(
+    `SELECT s.*, g.name AS gym_name, g.address AS gym_address
+     FROM team_practice_slots s
+     LEFT JOIN gyms g ON g.id = s.gym_id
+     ORDER BY s.team_id, CASE s.weekday WHEN 0 THEN 7 ELSE s.weekday END, s.start_time`
+  );
+  const out = {};
+  for (const r of rows) (out[r.team_id] ||= []).push(r);
+  return out;
+}
+
 /** One squad's weekly slots, in day order, with the gym resolved. */
 export function getSlotsForTeam(teamId) {
   return query(

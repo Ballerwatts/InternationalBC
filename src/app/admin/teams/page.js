@@ -1,17 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import WeeklyPatternEditor from "@/components/WeeklyPatternEditor";
 
-const EMPTY = { name: "", category: "", practice_location_name: "", practice_location_address: "" };
+const EMPTY = { name: "", category: "" };
 
 export default function TeamsAdminPage() {
   const [teams, setTeams] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [gyms, setGyms] = useState([]);
 
   function refresh() {
     fetch("/api/admin/teams").then((r) => r.json()).then(setTeams);
+    // Halls with the squads linked to each — the Teams page shows a team's
+    // gyms and lets you set its Training Schedule against them.
+    fetch("/api/gyms")
+      .then((r) => r.json())
+      .then((d) => setGyms(Array.isArray(d) ? d : []));
   }
 
   useEffect(refresh, []);
@@ -99,18 +107,6 @@ export default function TeamsAdminPage() {
           onChange={(e) => setForm({ ...form, category: e.target.value })}
           className="input"
         />
-        <input
-          placeholder="Practice location (e.g. École Raymond-Uldry)"
-          value={form.practice_location_name}
-          onChange={(e) => setForm({ ...form, practice_location_name: e.target.value })}
-          className="input"
-        />
-        <input
-          placeholder="Practice location address"
-          value={form.practice_location_address}
-          onChange={(e) => setForm({ ...form, practice_location_address: e.target.value })}
-          className="input"
-        />
         {error && <p className="col-span-2 text-sm text-red-600">{error}</p>}
         <button className="col-span-2 rounded-full bg-ibc-blue py-2 text-sm font-bold uppercase text-white hover:brightness-110">
           + Add a team
@@ -129,6 +125,8 @@ export default function TeamsAdminPage() {
             onSave={(patch) => update(t.id, patch)}
             onDelete={() => remove(t.id)}
             onMove={(dir) => move(i, dir)}
+            teams={teams}
+            gyms={gyms}
           />
         ))}
       </ul>
@@ -145,7 +143,9 @@ export default function TeamsAdminPage() {
   );
 }
 
-function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove }) {
+function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove, teams, gyms }) {
+  // The halls this squad is linked to, from the gyms table.
+  const teamGyms = gyms.filter((g) => (g.teams || []).some((t) => t.team_id === team.id));
   const [form, setForm] = useState(team);
 
   useEffect(() => setForm(team), [team]);
@@ -177,11 +177,8 @@ function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove 
           <div>
             <p className="text-sm font-semibold text-ibc-ink">{team.name}</p>
             {team.category && <p className="text-xs text-ibc-ink/50">{team.category}</p>}
-            {team.practice_location_name && (
-              <p className="text-xs text-ibc-ink/40">
-                {team.practice_location_name}
-                {team.practice_location_address ? ` — ${team.practice_location_address}` : ""}
-              </p>
+            {teamGyms.length > 0 && (
+              <p className="text-xs text-ibc-ink/40">{teamGyms.map((g) => g.name).join(" · ")}</p>
             )}
           </div>
           <span className="shrink-0 text-xs font-bold uppercase text-ibc-blue">
@@ -204,21 +201,51 @@ function TeamRow({ team, index, count, open, onToggle, onSave, onDelete, onMove 
             onChange={(e) => setForm({ ...form, category: e.target.value })}
             className="input"
           />
-          <input
-            placeholder="Practice location"
-            value={form.practice_location_name || ""}
-            onChange={(e) => setForm({ ...form, practice_location_name: e.target.value })}
-            className="input col-span-2"
-          />
-          <input
-            placeholder="Practice location address"
-            value={form.practice_location_address || ""}
-            onChange={(e) => setForm({ ...form, practice_location_address: e.target.value })}
-            className="input col-span-2"
-          />
+          {/* These used to be free-text "Practice location" boxes. Anything
+              typed there was silently overwritten the next time a gym was
+              saved, because the gyms table owns venues. So they are gone:
+              the team shows its real linked halls, and its schedule is
+              edited right here against them. */}
+          <div className="col-span-2 rounded-lg border border-black/10 bg-black/[0.02] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase text-ibc-blue/70">Salles liées</p>
+              <Link href="/admin/gyms" className="text-xs font-bold uppercase text-ibc-blue hover:underline">
+                Gérer les salles →
+              </Link>
+            </div>
+            {teamGyms.length === 0 ? (
+              <p className="mt-1 text-sm text-ibc-ink/50">
+                Aucune salle liée — liez cette équipe à une salle dans Gyms.
+              </p>
+            ) : (
+              <ul className="mt-1 space-y-0.5 text-sm">
+                {teamGyms.map((g) => {
+                  const link = g.teams.find((t) => t.team_id === team.id);
+                  return (
+                    <li key={g.id}>
+                      <span className="font-semibold text-ibc-ink">{g.name}</span>
+                      {g.address && <span className="text-ibc-ink/50"> — {g.address}</span>}
+                      {link?.usage && (
+                        <span className="ml-2 text-xs text-ibc-ink/40">({link.usage})</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <div className="col-span-2">
+            <WeeklyPatternEditor teamId={team.id} teams={teams} gyms={teamGyms.length ? teamGyms : gyms} />
+          </div>
           <div className="col-span-2 flex gap-2">
             <button
-              onClick={() => onSave(form)}
+              onClick={() =>
+                onSave({
+                  ...form,
+                  practice_location_name: team.practice_location_name,
+                  practice_location_address: team.practice_location_address,
+                })
+              }
               className="rounded-full bg-ibc-blue px-5 py-2 text-sm font-bold uppercase text-white hover:brightness-110"
             >
               Save
