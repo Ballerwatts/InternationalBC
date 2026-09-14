@@ -14,7 +14,7 @@ import { join } from "node:path";
 process.env.DATABASE_PATH = join(mkdtempSync(join(tmpdir(), "ibc-slots-")), "t.db");
 process.env.SESSION_SECRET = "test-secret";
 
-const { query, run, getSlotsForTeam, replaceSlotsForTeam } = await import("@/lib/db");
+const { query, run, getSlotsForTeam, replaceSlotsForTeam, toTeamId } = await import("@/lib/db");
 
 let teamId;
 before(() => {
@@ -67,4 +67,35 @@ test("a gym can be attached, and its name comes back resolved", () => {
     { weekday: 4, start_time: "20:00", end_time: "22:00", gym_id: Number(lastInsertRowid) },
   ]);
   assert.equal(getSlotsForTeam(teamId)[0].gym_name, "Collège Sismondi");
+});
+
+// The "Tout le club" option sends team_id="" — and practices.team_id is a
+// foreign key, so an empty string 500s the request and creates nothing.
+// That is exactly how "générer les 12 prochaines semaines" came back
+// looking like it had worked while adding no dates at all.
+test("club-wide means NULL, never an empty string", () => {
+  assert.equal(toTeamId(""), null);
+  assert.equal(toTeamId(null), null);
+  assert.equal(toTeamId(undefined), null);
+  assert.equal(toTeamId("3"), 3);
+  assert.equal(toTeamId(3), 3);
+  assert.equal(toTeamId("nope"), null);
+});
+
+test("a club-wide practice inserts; an empty-string team_id would not", () => {
+  run(
+    `INSERT INTO practices (kind, title, practice_date, start_time, end_time, team_id)
+     VALUES ('practice', 'Entraînement', '2099-01-05', '20:00', '22:00', ?)`,
+    [toTeamId("")]
+  );
+  const row = query("SELECT team_id FROM practices WHERE practice_date = '2099-01-05'")[0];
+  assert.equal(row.team_id, null);
+
+  assert.throws(() =>
+    run(
+      `INSERT INTO practices (kind, title, practice_date, start_time, end_time, team_id)
+       VALUES ('practice', 'Entraînement', '2099-01-06', '20:00', '22:00', ?)`,
+      [""]
+    )
+  );
 });

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { query, run, getSlotsForTeam } from "@/lib/db";
+import { query, run, getSlotsForTeam, toTeamId } from "@/lib/db";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
 import { applyAbsencesToPractice } from "@/lib/absences";
+import { expandHolidayDays } from "@/lib/holidays";
 import { isSupportedVideoUrl } from "@/lib/video";
 import { toISODate } from "@/lib/dates";
 
@@ -48,8 +49,9 @@ export async function POST(request) {
   const session = await getSession();
   const body = await request.json();
 
-  // Coaches can only ever write to their own team; admins may target any team.
-  const teamId = session.role === "admin" ? body.team_id ?? null : session.team_id ?? null;
+  // Coaches can only ever write to their own team; admins may target any
+  // team. toTeamId() is what turns the "Tout le club" option's "" into NULL.
+  const teamId = toTeamId(session.role === "admin" ? body.team_id : session.team_id);
 
   if (body.action === "generate_weeks") {
     return generateWeeks({ ...body, teamId });
@@ -119,16 +121,36 @@ function generateWeeks({ weeks = 12, teamId }) {
     byWeekday.get(slot.weekday).push(slot);
   }
 
+  // A day the squad already plays on is not a training day — the generator
+  // steps over it and says so, rather than double-booking the hall.
+  const gameDays = new Set(
+    query(
+      "SELECT practice_date FROM practices WHERE kind IN ('game', 'friendly') AND team_id IS ?",
+      [teamId]
+    ).map((r) => r.practice_date)
+  );
+
+  // Geneva school holidays: the hall is a school, so a session inside one
+  // may not happen. It is still created — the coach decides — but it comes
+  // back flagged so the admin screen can say how many to check.
+  const holidayDays = expandHolidayDays(query("SELECT * FROM holidays"));
+
   const insert = `INSERT INTO practices (kind, title, practice_date, start_time, end_time, location_name, location_address, team_id)
                    VALUES ('practice', 'Entraînement', ?, ?, ?, ?, ?, ?)`;
 
   const d = new Date();
   let createdCount = 0;
+  let duringHolidays = 0;
+  const skippedForGames = [];
   for (let i = 0; i < weeks * 7; i++) {
     d.setDate(d.getDate() + 1);
     const daySlots = byWeekday.get(d.getDay());
     if (!daySlots) continue;
     const iso = toISODate(d);
+    if (gameDays.has(iso)) {
+      skippedForGames.push(iso);
+      continue;
+    }
     for (const slot of daySlots) {
       if (existing.has(`${iso}|${slot.start_time}`)) continue;
       const { lastInsertRowid } = run(insert, [
@@ -142,8 +164,15 @@ function generateWeeks({ weeks = 12, teamId }) {
       applyAbsencesToPractice(lastInsertRowid);
       existing.add(`${iso}|${slot.start_time}`);
       createdCount++;
+      if (holidayDays[iso]) duringHolidays++;
     }
   }
 
-  return NextResponse.json({ ok: true, created: createdCount, usedPattern: slots.length > 0 });
+  return NextResponse.json({
+    ok: true,
+    created: createdCount,
+    duringHolidays,
+    skippedForGames,
+    usedPattern: slots.length > 0,
+  });
 }

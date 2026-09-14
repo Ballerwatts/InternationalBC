@@ -3,3 +3,9 @@ node_modules/
 data/*.db
 .env
 .env.local
+
+# SQLite keeps live data in the -wal/-shm sidecars too. data/*.db alone let
+# them through, and this repo is public.
+data/
+.DS_Store
+.env.local

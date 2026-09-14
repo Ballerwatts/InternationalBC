@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSlotsForTeam, replaceSlotsForTeam } from "@/lib/db";
+import { getSlotsForTeam, replaceSlotsForTeam, toTeamId } from "@/lib/db";
 import { requireArea } from "@/lib/access";
 import { getSession } from "@/lib/auth";
 
@@ -11,9 +11,8 @@ export const dynamic = "force-dynamic";
 
 function teamIdFrom(request, session) {
   // A coach only ever edits their own squad, whatever they send.
-  if (session?.role !== "admin") return session?.team_id ?? null;
-  const raw = new URL(request.url).searchParams.get("team_id");
-  return raw === null || raw === "" ? null : Number(raw);
+  if (session?.role !== "admin") return toTeamId(session?.team_id);
+  return toTeamId(new URL(request.url).searchParams.get("team_id"));
 }
 
 export async function GET(request) {

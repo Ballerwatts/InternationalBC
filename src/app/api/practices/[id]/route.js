@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { get, run } from "@/lib/db";
+import { get, run, toTeamId } from "@/lib/db";
 import { applyAbsencesToPractice } from "@/lib/absences";
 import { requireStaff } from "@/lib/api-auth";
 import { getSession } from "@/lib/auth";
@@ -62,7 +62,7 @@ export async function PUT(request, { params }) {
   // club-wide); a coach editing their own team's event can't reassign it.
   if (session.role === "admin" && "team_id" in body) {
     sets.push("team_id = ?");
-    values.push(body.team_id === "" || body.team_id == null ? null : Number(body.team_id));
+    values.push(toTeamId(body.team_id));
   }
   if (sets.length === 0) return NextResponse.json({ ok: true });
 

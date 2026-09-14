@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EVENT_KINDS, eventLabel, kindNeedsTitle } from "@/lib/event-kinds";
 import { expandHolidayDays, formatHolidayRange } from "@/lib/holidays";
 import { CSV_TEMPLATE } from "@/lib/game-csv";
@@ -55,6 +55,10 @@ export default function ScheduleAdminPage() {
   // School holidays
   const [showHolidays, setShowHolidays] = useState(false);
   const [holidayForm, setHolidayForm] = useState(EMPTY_HOLIDAY);
+
+  // Past events are archived — folded away at the bottom, not deleted.
+  const [showPast, setShowPast] = useState(false);
+  const formRef = useRef(null);
 
   function refresh() {
     fetch("/api/practices").then((r) => r.json()).then(setItems);
@@ -114,6 +118,9 @@ export default function ScheduleAdminPage() {
     setEditingId(item.id);
     // team_id comes back as null for club-wide events; the <select> needs "".
     setForm({ ...item, team_id: item.team_id ?? "", title: item.title || "" });
+    // The form sits above the lists; from row 40 of "À venir" a click on
+    // "modifier" otherwise looks like it did nothing.
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   async function generateWeeks() {
@@ -200,7 +207,18 @@ export default function ScheduleAdminPage() {
   }
 
   const upcoming = items.filter((i) => i.practice_date >= todayISO());
-  const past = items.filter((i) => i.practice_date < todayISO());
+  const past = items.filter((i) => i.practice_date < todayISO()).reverse();
+
+  // One list per squad, club-wide events first. A coach scanning for their
+  // own team should not have to read every other squad's line to find it.
+  const groups = [
+    { key: "club", name: "Tout le club", items: upcoming.filter((e) => !e.team_id) },
+    ...teams.map((t) => ({
+      key: t.id,
+      name: t.name,
+      items: upcoming.filter((e) => e.team_id === t.id),
+    })),
+  ].filter((g) => g.items.length > 0);
 
   return (
     <div className="max-w-3xl">
@@ -534,7 +552,7 @@ export default function ScheduleAdminPage() {
         </div>
       )}
 
-      <form onSubmit={submit} className="mt-6 grid grid-cols-2 gap-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm">
+      <form ref={formRef} onSubmit={submit} className="mt-6 grid grid-cols-2 gap-3 rounded-xl border border-black/5 bg-white p-5 shadow-sm">
         <select
           value={form.kind}
           onChange={(e) => setForm({ ...form, kind: e.target.value })}
@@ -640,14 +658,51 @@ export default function ScheduleAdminPage() {
         </div>
       </form>
 
-      <h2 className="mt-8 font-display text-xl font-bold uppercase text-ibc-blue">À venir</h2>
-      <EventList items={upcoming} onEdit={edit} onDelete={remove} teamNameById={teamNameById} holidayDays={holidayDays} />
+      <h2 className="mt-8 font-display text-xl font-bold uppercase text-ibc-blue">
+        À venir <span className="text-ibc-ink/40">({upcoming.length})</span>
+      </h2>
+
+      {groups.length === 0 && (
+        <p className="mt-3 text-sm text-ibc-ink/50">
+          Aucun événement à venir. Réglez le rythme hebdomadaire ci-dessus puis générez les 12
+          prochaines semaines, ou ajoutez une ligne à la main.
+        </p>
+      )}
+
+      {groups.map((g) => (
+        <section key={g.key} className="mt-5">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-ibc-ink/50">
+            {g.name} <span className="text-ibc-ink/30">· {g.items.length}</span>
+          </h3>
+          <EventList
+            items={g.items}
+            onEdit={edit}
+            onDelete={remove}
+            teamNameById={teamNameById}
+            holidayDays={holidayDays}
+          />
+        </section>
+      ))}
 
       {past.length > 0 && (
-        <>
-          <h2 className="mt-8 font-display text-xl font-bold uppercase text-ibc-ink/50">Passés</h2>
-          <EventList items={past} onEdit={edit} onDelete={remove} teamNameById={teamNameById} holidayDays={holidayDays} muted />
-        </>
+        <div className="mt-10 border-t border-black/5 pt-5">
+          <button
+            onClick={() => setShowPast((v) => !v)}
+            className="text-xs font-bold uppercase tracking-wide text-ibc-ink/50 hover:underline"
+          >
+            {showPast ? "▾ Masquer" : "▸ Afficher"} les dates passées ({past.length})
+          </button>
+          {showPast && (
+            <EventList
+              items={past}
+              onEdit={edit}
+              onDelete={remove}
+              teamNameById={teamNameById}
+              holidayDays={holidayDays}
+              muted
+            />
+          )}
+        </div>
       )}
 
       <style jsx global>{`

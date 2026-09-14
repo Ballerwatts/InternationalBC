@@ -1016,6 +1016,21 @@ export function syncAllTeamPracticeLocations() {
 // Weekly practice pattern
 // ---------------------------------------------------------------------------
 
+/**
+ * A team_id coming off the wire, turned into what the column can hold.
+ *
+ * Every "Tout le club" <select> sends `""`, and `practices.team_id`
+ * REFERENCES teams(id) — so an empty string fails the foreign key and 500s
+ * the whole request. That is what silently killed "generate the next 12
+ * weeks" for club-wide events: nothing was created, and the calendar looked
+ * unchanged. Club-wide is NULL, never "".
+ */
+export function toTeamId(value) {
+  if (value === "" || value == null) return null;
+  const n = Number(value);
+  return Number.isInteger(n) ? n : null;
+}
+
 /** One squad's weekly slots, in day order, with the gym resolved. */
 export function getSlotsForTeam(teamId) {
   return query(
